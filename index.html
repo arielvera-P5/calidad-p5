@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calidad P5 · NaturalSlim</title>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#1c2a48; --navy2:#2b3d63; --acc:#0e8a7e; --acc2:#0b6f65; --bg:#f3f5f9; --card:#fff;
+    --tx:#1d2433; --tx2:#5b6578; --bd:#e2e6ee; --ok:#1f8a4c; --okbg:#e5f5ec; --warn:#b26a00; --warnbg:#fff3df;
+    --bad:#c0392b; --badbg:#fdecea; --info:#2c5fb3; --infobg:#e8f0fd; --r:10px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  button,input,select,textarea{font:inherit;color:inherit}
+  [hidden]{display:none!important}
+
+  /* Login */
+  .login{min-height:100vh;display:grid;place-items:center;padding:16px;background:linear-gradient(160deg,var(--navy) 0%,var(--navy2) 55%,var(--acc2) 100%)}
+  .login-card{width:100%;max-width:380px;background:var(--card);border-radius:16px;padding:32px 28px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+  .marca{display:flex;align-items:center;gap:10px;margin-bottom:22px}
+  .logo{width:38px;height:38px;border-radius:10px;background:var(--acc);display:grid;place-items:center;color:#fff;font-weight:700}
+  .marca b{display:block;font-size:16px}.marca small{color:var(--tx2)}
+  .login h2{margin:0 0 4px;font-size:20px}.login p{margin:0 0 20px;color:var(--tx2)}
+
+  /* Campos */
+  label{display:block;font-size:12px;font-weight:600;color:var(--tx2);margin-bottom:5px}
+  .inp,select,textarea,input[type=text],input[type=password],input[type=date],input[type=number],input[type=search]{
+    width:100%;padding:9px 11px;border:1px solid var(--bd);border-radius:8px;background:#fff;outline:none;transition:border .15s,box-shadow .15s}
+  input:focus,select:focus,textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(14,138,126,.15)}
+  textarea{min-height:84px;resize:vertical}
+  .campo{margin-bottom:14px}
+  .req{color:var(--bad)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;border:0;border-radius:8px;background:var(--acc);color:#fff;font-weight:600;cursor:pointer;white-space:nowrap}
+  .btn:hover{background:var(--acc2)} .btn:disabled{opacity:.6;cursor:default}
+  .btn.sec{background:#fff;color:var(--tx);border:1px solid var(--bd)} .btn.sec:hover{background:#f6f7fa}
+  .btn.full{width:100%} .btn.sm{padding:6px 11px;font-size:13px}
+  .err{background:var(--badbg);color:var(--bad);padding:9px 12px;border-radius:8px;margin-bottom:14px;font-size:13px}
+
+  /* App */
+  header{background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;gap:12px}
+  header .marca{margin:0} header .marca small{color:#b9c3d8}
+  .usr{display:flex;align-items:center;gap:8px;font-size:13px}
+  .usr .nom{color:#dfe5f1;margin-right:4px}
+  .usr button{background:rgba(255,255,255,.12);color:#fff;border:0;border-radius:7px;padding:6px 10px;cursor:pointer}
+  .usr button:hover{background:rgba(255,255,255,.22)}
+  nav{background:#fff;border-bottom:1px solid var(--bd);display:flex;gap:2px;padding:0 14px;overflow-x:auto}
+  nav button{background:none;border:0;padding:13px 12px;cursor:pointer;color:var(--tx2);font-weight:500;border-bottom:2px solid transparent;white-space:nowrap}
+  nav button.on{color:var(--navy);border-bottom-color:var(--acc);font-weight:600}
+  main{padding:20px;max-width:1400px;margin:0 auto}
+  .vh{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  h1{margin:0;font-size:21px}.sub{margin:2px 0 0;color:var(--tx2)}
+  .acciones{display:flex;gap:8px;flex-wrap:wrap}
+  .filtros{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .filtros>*{flex:1 1 180px;max-width:280px}
+  .filtros input[type=search]{flex:2 1 240px;max-width:none}
+  .cargando{padding:60px 0;text-align:center;color:var(--tx2)}
+
+  /* Tabla */
+  .tabla-wrap{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);overflow:auto;max-height:calc(100vh - 290px);min-height:200px}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th{position:sticky;top:0;background:#f7f8fb;text-align:left;font-weight:600;color:var(--tx2);padding:10px 12px;border-bottom:1px solid var(--bd);white-space:nowrap;z-index:1}
+  td{padding:9px 12px;border-bottom:1px solid #eef0f4;vertical-align:top}
+  tbody tr.clic{cursor:pointer} tbody tr.clic:hover{background:#f5faf9}
+  .trunc{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .vacio{padding:40px;text-align:center;color:var(--tx2)}
+  .mas{text-align:center;margin:12px 0}
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;background:#eef0f4;color:var(--tx2)}
+  .b-ok{background:var(--okbg);color:var(--ok)} .b-warn{background:var(--warnbg);color:var(--warn)}
+  .b-bad{background:var(--badbg);color:var(--bad)} .b-info{background:var(--infobg);color:var(--info)}
+  a.lnk{color:var(--navy);font-weight:600;cursor:pointer;text-decoration:none} a.lnk:hover{text-decoration:underline}
+
+  /* Resumen */
+  .semnav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .semnav .lbl{font-weight:600;padding:0 6px}
+  .sec-t{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--tx2);margin:22px 0 10px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+  .kpi{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px;border-top:3px solid var(--navy2)}
+  .kpi.ok{border-top-color:var(--ok)} .kpi.warn{border-top-color:var(--warn)} .kpi.bad{border-top-color:var(--bad)}
+  .kpi .l{font-size:12px;color:var(--tx2);font-weight:600}
+  .kpi .v{font-size:28px;font-weight:700;margin:4px 0 2px;font-variant-numeric:tabular-nums}
+  .kpi .s{font-size:12px;color:var(--tx2)}
+  .up{color:var(--ok)} .down{color:var(--bad)}
+  .alertas{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:6px 16px}
+  .alerta{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid #eef0f4}.alerta:last-child{border:0}
+  .dot{width:9px;height:9px;border-radius:50%;margin-top:6px;flex:none}
+  .dot.alta{background:var(--bad)}.dot.media{background:var(--warn)}.dot.baja{background:var(--info)}
+  .barra{display:flex;align-items:center;gap:8px}
+  .barra i{display:block;height:7px;border-radius:4px;background:var(--acc);min-width:2px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+
+  /* Modal */
+  .modal{position:fixed;inset:0;background:rgba(20,28,45,.5);display:grid;place-items:center;padding:16px;z-index:50}
+  .modal-card{background:#fff;border-radius:14px;width:100%;max-width:860px;max-height:calc(100vh - 32px);display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .modal-card.chico{max-width:420px}
+  .modal-h{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--bd)}
+  .modal-h h3{margin:0;font-size:17px}
+  .x{background:none;border:0;font-size:22px;line-height:1;cursor:pointer;color:var(--tx2)}
+  .modal-b{padding:18px 20px;overflow:auto}
+  .modal-f{padding:14px 20px;border-top:1px solid var(--bd);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+  .grid-form{display:grid;grid-template-columns:repeat(2,1fr);gap:0 16px}
+  .grid-form .ancho{grid-column:1/-1}
+  .ro .valor{padding:9px 11px;background:#f6f7fa;border-radius:8px;color:var(--tx2);min-height:38px;white-space:pre-wrap}
+  .check{display:flex;align-items:center;gap:8px;font-weight:500;color:var(--tx)} .check input{width:auto}
+
+  #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 18px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:60}
+  #toast.on{opacity:1}
+
+  @media (max-width:700px){
+    header{padding:10px 16px} .usr .nom{display:none} main{padding:16px}
+    .grid-form{grid-template-columns:1fr} .filtros>*{max-width:none}
+    .tabla-wrap{max-height:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="login" class="login" hidden>
+  <form class="login-card" id="f-login" autocomplete="on">
+    <div class="marca"><div class="logo">P5</div><div><b>Calidad P5</b><small>NaturalSlim · Programa Personal</small></div></div>
+    <h2>Iniciar sesión</h2>
+    <p>Ingresa con el usuario que te dio el administrador.</p>
+    <div id="login-err" class="err" hidden></div>
+    <div class="campo"><label for="l-u">Usuario</label><input type="text" id="l-u" autocomplete="username" required autofocus></div>
+    <div class="campo"><label for="l-p">Contraseña</label><input type="password" id="l-p" autocomplete="current-password" required></div>
+    <button class="btn full" id="l-btn" type="submit">Entrar</button>
+  </form>
+</div>
+
+<!-- ============ PRIMER USO ============ -->
+<div id="setup" class="login" hidden>
+  <form class="login-card" id="f-setup" autocomplete="off">
+    <div class="marca"><div class="logo">P5</div><div><b>Calidad P5</b><small>Configuración inicial</small></div></div>
+    <h2>Crear administrador</h2>
+    <p>Todavía no hay ningún usuario. Crea tu cuenta de administrador; después podrás dar de alta al resto desde la web.</p>
+    <div id="setup-err" class="err" hidden></div>
+    <div class="campo"><label for="s-u">Usuario</label><input type="text" id="s-u" placeholder="ej. ariel" required></div>
+    <div class="campo"><label for="s-n">Nombre completo</label><input type="text" id="s-n" required></div>
+    <div class="campo"><label for="s-p">Contraseña (mínimo 8)</label><input type="password" id="s-p" autocomplete="new-password" required></div>
+    <div class="campo"><label for="s-r">Repite la contraseña</label><input type="password" id="s-r" autocomplete="new-password" required></div>
+    <button class="btn full" id="s-btn" type="submit">Crear y entrar</button>
+  </form>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" hidden>
+  <header>
+    <div class="marca"><div class="logo">P5</div><div><b>Calidad P5</b><small>NaturalSlim · PP</small></div></div>
+    <div class="usr"><span class="nom" id="u-nom"></span><button id="b-pass" title="Cambiar contraseña">Contraseña</button><button id="b-salir">Salir</button></div>
+  </header>
+  <nav id="tabs"></nav>
+  <main id="vista"></main>
+</div>
+
+<!-- ============ MODAL ============ -->
+<div id="modal" class="modal" hidden>
+  <div class="modal-card" id="modal-card">
+    <div class="modal-h"><h3 id="modal-t"></h3><button class="x" onclick="cerrarModal()" aria-label="Cerrar">×</button></div>
+    <div class="modal-b" id="modal-b"></div>
+    <div class="modal-f" id="modal-f"></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+/* ======================== Utilidades ======================== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const S = { token:null, user:null, meta:null, listas:null, data:{}, filtros:{}, tab:'resumen', semana:null, grad:null, gf:{q:'',cmc:'',est:'',mes:''} };
+const store = {
+  get(){ try { return sessionStorage.getItem('calp5_tok'); } catch(e){ return null; } },
+  set(t){ try { t ? sessionStorage.setItem('calp5_tok', t) : sessionStorage.removeItem('calp5_tok'); } catch(e){} }
+};
+/* ======== CONFIGURACIÓN: pega aquí el enlace de tu implementación de Apps Script ======== */
+const API_URL = 'PEGA_AQUI_LA_URL_DE_APPS_SCRIPT'; // termina en /exec
+
+async function run(fn, ...args){
+  if (API_URL.indexOf('script.google.com') < 0) throw new Error('Falta configurar API_URL en index.html.');
+  let res;
+  try {
+    // text/plain evita la verificación CORS previa, que Apps Script no admite
+    const r = await fetch(API_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ fn, args }) });
+    res = await r.json();
+  } catch(e){
+    throw new Error('No se pudo conectar con el servidor. Revisa tu internet e inténtalo de nuevo.');
+  }
+  if (res.ok) return res.data;
+  const m = res.error || 'Error desconocido';
+  if (m.indexOf('SESION_EXPIRADA') >= 0){ salir(true); throw new Error('Tu sesión expiró. Inicia sesión de nuevo.'); }
+  throw new Error(m);
+}
+const api = (fn, ...a) => run(fn, S.token, ...a);
+const limpiar = l => String(l||'').replace(/\s*\(auto[^)]*\)/ig,'').replace(/\s*\(CW0000\)/,'').trim();
+const hoyIso = () => { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+const fmt = iso => { if(!iso) return ''; const p = iso.split('-'); return p[1]+'/'+p[2]+'/'+p[0]; };
+const pct = (a,b) => b ? Math.round(a/b*1000)/10 + '%' : '—';
+function toast(t){ const e = $('#toast'); e.textContent = t; e.classList.add('on'); clearTimeout(e._t); e._t = setTimeout(()=>e.classList.remove('on'), 2600); }
+function modal(t, cuerpo, pie, chico){ $('#modal-t').textContent = t; $('#modal-b').innerHTML = cuerpo; $('#modal-f').innerHTML = pie || ''; $('#modal-card').classList.toggle('chico', !!chico); $('#modal').hidden = false; }
+function cerrarModal(){ $('#modal').hidden = true; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#modal').hidden) cerrarModal(); });
+function errModal(m){ let e = $('#modal-b .err'); if(!e){ e = document.createElement('div'); e.className='err'; $('#modal-b').prepend(e);} e.textContent = m; $('#modal-b').scrollTop = 0; }
+function cargando(){ $('#vista').innerHTML = '<div class="cargando">Cargando…</div>'; }
+function errVista(e){ $('#vista').innerHTML = '<div class="err">'+esc(e.message)+'</div>'; }
+
+/* ======================== Sesión ======================== */
+function mostrarLogin(){ $('#app').hidden = true; $('#login').hidden = false; $('#l-p').value=''; setTimeout(()=>$('#l-u').focus(), 50); }
+$('#f-login').addEventListener('submit', async e => {
+  e.preventDefault();
+  const b = $('#l-btn'), er = $('#login-err');
+  b.disabled = true; b.textContent = 'Entrando…'; er.hidden = true;
+  try {
+    const r = await run('login', $('#l-u').value, $('#l-p').value);
+    S.token = r.token; store.set(r.token);
+    await iniciar();
+  } catch(err){ er.textContent = err.message; er.hidden = false; }
+  b.disabled = false; b.textContent = 'Entrar';
+});
+async function iniciar(){
+  const r = await api('getInicio');
+  S.user = r.usuario; S.meta = r.meta; S.listas = r.listas;
+  $('#u-nom').textContent = S.user.nombre + (S.user.rol === 'admin' ? ' · Admin' : '');
+  $('#login').hidden = true; $('#setup').hidden = true; $('#app').hidden = false;
+  pintarTabs(); ir('resumen');
+}
+function salir(silencioso){
+  if (S.token && !silencioso) run('logout', S.token).catch(()=>{});
+  S.token = null; S.data = {}; S.grad = null; store.set(null); cerrarModal(); mostrarLogin();
+}
+$('#b-salir').onclick = () => salir();
+$('#b-pass').onclick = () => {
+  modal('Cambiar mi contraseña',
+    '<div class="campo"><label>Contraseña actual</label><input type="password" id="p-a" autocomplete="current-password"></div>'+
+    '<div class="campo"><label>Nueva contraseña (mínimo 6)</label><input type="password" id="p-n" autocomplete="new-password"></div>'+
+    '<div class="campo"><label>Repite la nueva</label><input type="password" id="p-r" autocomplete="new-password"></div>',
+    '<button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" id="p-ok">Guardar</button>', true);
+  $('#p-ok').onclick = async () => {
+    if ($('#p-n').value !== $('#p-r').value) return errModal('Las contraseñas nuevas no coinciden.');
+    const b = $('#p-ok'); b.disabled = true;
+    try { await api('cambiarMiPassword', $('#p-a').value, $('#p-n').value); cerrarModal(); toast('Contraseña actualizada'); }
+    catch(e){ errModal(e.message); b.disabled = false; }
+  };
+};
+
+/* ======================== Navegación ======================== */
+function tabs(){
+  const t = [{k:'resumen',t:'Resumen'}];
+  Object.keys(S.meta).forEach(k => t.push({k, t:S.meta[k].titulo}));
+  t.push({k:'graduados', t:'Graduados (grid)'});
+  if (S.user.rol === 'admin'){ t.push({k:'usuarios', t:'Usuarios'}); t.push({k:'bitacora', t:'Bitácora'}); }
+  return t;
+}
+function pintarTabs(){
+  $('#tabs').innerHTML = tabs().map(x => '<button data-k="'+x.k+'">'+esc(x.t)+'</button>').join('');
+  $('#tabs').querySelectorAll('button').forEach(b => b.onclick = () => ir(b.dataset.k));
+}
+function ir(k){
+  S.tab = k;
+  $('#tabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.k === k));
+  if (k === 'resumen') vistaResumen();
+  else if (S.meta[k]) vistaHoja(k);
+  else if (k === 'graduados') vistaGrad();
+  else if (k === 'usuarios') vistaUsuarios();
+  else if (k === 'bitacora') vistaBitacora();
+}
+
+/* ======================== Resumen ======================== */
+async function vistaResumen(sem){
+  cargando();
+  let r;
+  try { r = await api('getResumen', sem || S.semana || ''); } catch(e){ return errVista(e); }
+  if (S.tab !== 'resumen') return;
+  S.semana = r.semana.ini;
+  const k = r.kpi, s = r.semana;
+  const delta = (a,b) => { if(!b && !a) return ''; const d = a-b; return d === 0 ? ' · igual' : ' · <span class="'+(d>0?'up':'down')+'">'+(d>0?'▲ +':'▼ ')+d+'</span>'; };
+  const cumple = k.evaluadas ? k.cumplen/k.evaluadas : null;
+  const horas = k.hExig ? k.hCumpl/k.hExig : null;
+  const card = (l,v,sub,cls) => '<div class="kpi '+(cls||'')+'"><div class="l">'+l+'</div><div class="v">'+v+'</div><div class="s">'+(sub||'')+'</div></div>';
+  const maxLl = Math.max(1, ...r.porConsultor.map(p=>p.llamadas));
+
+  $('#vista').innerHTML =
+    '<div class="vh"><div><h1>Resumen semanal</h1><p class="sub">Vie '+fmt(s.ini)+' – Jue '+fmt(s.fin)+(s.esActual?' · semana en curso':'')+'</p></div>'+
+    '<div class="semnav"><button class="btn sec sm" id="s-ant">◀ Anterior</button>'+
+    '<input type="date" id="s-fec" value="'+s.ini+'" style="width:auto">'+
+    '<button class="btn sec sm" id="s-sig">Siguiente ▶</button>'+
+    (s.esActual?'':'<button class="btn sm" id="s-hoy">Esta semana</button>')+'</div></div>'+
+
+    '<div class="sec-t">Llamadas y observaciones</div><div class="kpis">'+
+      card('Llamadas escuchadas', k.llamadas, 'Semana anterior: '+k.llamadasPrev+delta(k.llamadas,k.llamadasPrev))+
+      card('Consultores evaluados', k.consultores, 'Con al menos una llamada')+
+      card('Llamadas con observaciones', k.conObs, k.llamadas ? pct(k.conObs,k.llamadas)+' de las llamadas' : '')+
+      card('% cumplen criterios', cumple==null?'—':pct(k.cumplen,k.evaluadas), k.cumplen+' de '+k.evaluadas+' evaluadas · meta '+Math.round(k.metaCumple*100)+'%', cumple==null?'':(cumple>=k.metaCumple?'ok':'warn'))+
+      card('Observaciones corregidas', k.obsCorregidas, 'De las detectadas en la semana', 'ok')+
+      card('Observaciones pendientes', k.obsPendientes, 'De la semana, sin resolver', k.obsPendientes?'warn':'')+
+      card('Críticos sin resolver', k.criticos, 'Total vigente (todas las semanas)', k.criticos?'bad':'ok')+
+    '</div>'+
+
+    '<div class="sec-t">Seguimiento y estancados</div><div class="kpis">'+
+      card('Llamadas de seguimiento', k.seguimientos, 'Registradas para esta semana')+
+      card('Estancados identificados', k.estIdent, 'En la semana')+
+      card('Retomaron su avance', k.estRetomaron, 'Con fecha en la semana', k.estRetomaron?'ok':'')+
+      card('Casos estancados abiertos', k.estAbiertos, 'Total vigente', k.estAbiertos?'warn':'')+
+    '</div>'+
+
+    '<div class="sec-t">Graduaciones y horas de estudio</div><div class="kpis">'+
+      card('Graduados aprobados', k.grad, 'Semana anterior: '+k.gradPrev+delta(k.grad,k.gradPrev))+
+      card('Cumplimiento horas de estudio', horas==null?'—':pct(k.hCumpl,k.hExig), horas==null?'Sin registros en la semana':k.hCumpl+' de '+k.hExig+' h exigibles · meta '+Math.round(k.metaHoras*100)+'%', horas==null?'':(horas>=k.metaHoras?'ok':'warn'))+
+      card('Horas perdidas sin notificación', k.hPerd, 'En la semana', k.hPerd?'bad':'')+
+    '</div>'+
+
+    '<div class="sec-t">Alertas</div><div class="alertas">'+
+      (r.alertas.length ? r.alertas.map(a=>'<div class="alerta"><span class="dot '+a.n+'"></span><div>'+esc(a.t)+'</div></div>').join('') : '<div class="alerta"><span class="dot baja"></span><div>Sin alertas para esta semana.</div></div>')+
+    '</div>'+
+
+    '<div class="sec-t">Por consultor</div>'+
+    (r.porConsultor.length ? '<div class="tabla-wrap" style="max-height:none"><table><thead><tr><th>Consultor</th><th>Llamadas</th><th class="num">Con obs.</th><th class="num">% cumple</th><th class="num">Pendientes</th><th class="num">Seguimientos</th><th class="num">Graduados</th><th class="num">% horas</th></tr></thead><tbody>'+
+      r.porConsultor.map(p => '<tr><td><a class="lnk" data-c="'+esc(p.nombre)+'">'+esc(p.nombre)+'</a></td>'+
+        '<td><div class="barra"><i style="width:'+Math.round(p.llamadas/maxLl*90)+'px"></i>'+p.llamadas+'</div></td>'+
+        '<td class="num">'+p.conObs+'</td><td class="num">'+pct(p.cumple,p.evaluadas)+'</td>'+
+        '<td class="num">'+(p.pendientes?'<span class="badge b-warn">'+p.pendientes+'</span>':'0')+'</td>'+
+        '<td class="num">'+p.seguimientos+'</td><td class="num">'+p.graduados+'</td><td class="num">'+pct(p.hCumpl,p.hExig)+'</td></tr>').join('')+
+      '</tbody></table></div>' : '<div class="tabla-wrap"><div class="vacio">Sin actividad registrada en esta semana.</div></div>');
+
+  $('#s-ant').onclick = () => vistaResumen(addDias(s.ini,-7));
+  $('#s-sig').onclick = () => vistaResumen(addDias(s.ini,7));
+  $('#s-fec').onchange = e => e.target.value && vistaResumen(e.target.value);
+  if ($('#s-hoy')) $('#s-hoy').onclick = () => { S.semana = null; vistaResumen(hoyIso()); };
+  $('#vista').querySelectorAll('a.lnk[data-c]').forEach(a => a.onclick = () => {
+    S.filtros.llamadas = Object.assign(filtros('llamadas'), {cons:a.dataset.c, q:'', lim:50}); ir('llamadas');
+  });
+}
+function addDias(iso, n){ const p = iso.split('-').map(Number); const d = new Date(Date.UTC(p[0],p[1]-1,p[2]+n)); return d.toISOString().slice(0,10); }
+
+/* ======================== Hojas de captura ======================== */
+function filtros(k){ return S.filtros[k] || (S.filtros[k] = {q:'', cons:'', est:'', lim:50}); }
+
+async function vistaHoja(k, recargar){
+  const m = S.meta[k];
+  if (!S.data[k] || recargar){
+    cargando();
+    try { S.data[k] = await api('getRegistros', k); } catch(e){ return errVista(e); }
+    if (S.tab !== k) return;
+  }
+  const f = filtros(k);
+  const datos = S.data[k];
+  const consultores = [...new Set([...(S.listas.consultores||[]), ...datos.map(r=>r.d[m.consultor-1]).filter(Boolean)])].sort((a,b)=>a.localeCompare(b));
+  const colEst = m.estado ? m.columnas[m.estado-1] : null;
+  const estados = colEst ? [...new Set([...(S.listas[colEst.l]||[]), ...datos.map(r=>r.d[m.estado-1]).filter(Boolean)])] : [];
+  const opt = (arr, sel, todos) => '<option value="">'+todos+'</option>' + arr.map(x=>'<option'+(x===sel?' selected':'')+'>'+esc(x)+'</option>').join('');
+
+  $('#vista').innerHTML =
+    '<div class="vh"><div><h1>'+esc(m.titulo)+'</h1><p class="sub" id="cuenta"></p></div>'+
+    '<div class="acciones"><button class="btn sec" id="b-rec">↻ Actualizar</button><button class="btn" id="b-nuevo">+ Nuevo registro</button></div></div>'+
+    '<div class="filtros"><input type="search" id="f-q" placeholder="Buscar en todos los campos…" value="'+esc(f.q)+'">'+
+    '<select id="f-cons">'+opt(consultores, f.cons, 'Todos los consultores')+'</select>'+
+    (colEst ? '<select id="f-est">'+opt(estados, f.est, 'Todos los estados')+'</select>' : '')+'</div>'+
+    '<div class="tabla-wrap"><table><thead><tr>'+m.tabla.map(c=>'<th>'+esc(limpiar(m.columnas[c-1].label))+'</th>').join('')+'</tr></thead><tbody id="tb"></tbody></table></div>'+
+    '<div class="mas" id="mas"></div>';
+
+  $('#f-q').oninput = e => { f.q = e.target.value; f.lim = 50; pintarTabla(k); };
+  $('#f-cons').onchange = e => { f.cons = e.target.value; f.lim = 50; pintarTabla(k); };
+  if ($('#f-est')) $('#f-est').onchange = e => { f.est = e.target.value; f.lim = 50; pintarTabla(k); };
+  $('#b-rec').onclick = () => vistaHoja(k, true);
+  $('#b-nuevo').onclick = () => abrirForm(k, null);
+  pintarTabla(k);
+}
+
+function claseBadge(v){
+  const x = String(v).toLowerCase();
+  if (/resuelto|corregido|aprobado|avance retomado|cerrado|excelente|^sí$|^si$/.test(x)) return 'b-ok';
+  if (/crítico|critico|deficiente|rechazado|no corregido|^no$|vencid|perdidas/.test(x)) return 'b-bad';
+  if (/pendiente|proceso|necesita|parcial|seguimiento|análisis|analisis|nuevo|sin /.test(x)) return 'b-warn';
+  return 'b-info';
+}
+
+function pintarTabla(k){
+  const m = S.meta[k], f = filtros(k);
+  const q = f.q.trim().toLowerCase();
+  const filas = S.data[k].filter(r =>
+    (!f.cons || r.d[m.consultor-1] === f.cons) &&
+    (!f.est || r.d[m.estado-1] === f.est) &&
+    (!q || r.d.join(' ').toLowerCase().indexOf(q) >= 0)
+  ).sort((a,b) => b.f - a.f);
+  $('#cuenta').textContent = filas.length + (filas.length === 1 ? ' registro' : ' registros') + (filas.length !== S.data[k].length ? ' (de '+S.data[k].length+')' : '') + ' · más recientes primero';
+  const vis = filas.slice(0, f.lim);
+  $('#tb').innerHTML = vis.length ? vis.map(r => '<tr class="clic" data-f="'+r.f+'">' + m.tabla.map(c => {
+    const col = m.columnas[c-1], v = r.d[c-1];
+    if (v === '' || v == null) return '<td></td>';
+    if (c === m.alerta || c === m.estado || col.l === 'cumple' || col.l === 'prioridad' || col.l === 'resultado')
+      return '<td><span class="badge '+(c===m.alerta?'b-warn':claseBadge(v))+'">'+esc(v)+'</span></td>';
+    if (col.t === 'number' || (col.auto && /^[\d.,%\s-]+$/.test(v))) return '<td class="num">'+esc(v)+'</td>';
+    return '<td><div class="trunc" title="'+esc(v)+'">'+esc(v)+'</div></td>';
+  }).join('') + '</tr>').join('') : '<tr><td colspan="'+m.tabla.length+'"><div class="vacio">No hay registros con estos filtros.</div></td></tr>';
+  $('#tb').querySelectorAll('tr.clic').forEach(tr => tr.onclick = () => abrirForm(k, S.data[k].find(r => r.f === Number(tr.dataset.f))));
+  $('#mas').innerHTML = filas.length > f.lim ? '<button class="btn sec" id="b-mas">Ver más ('+(filas.length-f.lim)+' restantes)</button>' : '';
+  if ($('#b-mas')) $('#b-mas').onclick = () => { f.lim += 100; pintarTabla(k); };
+}
+
+function campoHtml(col, val){
+  const id = 'c'+col.c, lbl = esc(limpiar(col.label)) + (col.req ? ' <span class="req">*</span>' : '');
+  val = val == null ? '' : String(val);
+  let input;
+  if (col.t === 'list'){
+    const lista = (S.listas[col.l] || []).slice();
+    if (val && lista.indexOf(val) < 0) lista.push(val);
+    input = '<select name="'+id+'"><option value=""></option>'+lista.map(x=>'<option'+(x===val?' selected':'')+'>'+esc(x)+'</option>').join('')+'</select>';
+  } else if (col.t === 'date' && (val === '' || /^\d{4}-\d{2}-\d{2}$/.test(val))){
+    input = '<input type="date" name="'+id+'" value="'+esc(val)+'">';
+  } else if (col.t === 'number'){
+    input = '<input type="number" step="any" min="0" name="'+id+'" value="'+esc(val)+'">';
+  } else if (col.t === 'area'){
+    input = '<textarea name="'+id+'">'+esc(val)+'</textarea>';
+  } else {
+    input = '<input type="text" name="'+id+'" value="'+esc(val)+'">';
+  }
+  return '<div class="campo'+(col.t==='area'?' ancho':'')+'"><label>'+lbl+'</label>'+input+'</div>';
+}
+
+function abrirForm(k, rec){
+  const m = S.meta[k], nuevo = !rec;
+  const html = '<form id="f-reg" class="grid-form" onsubmit="return false">' + m.columnas.map(col => {
+    if (col.auto){
+      if (nuevo) return '';
+      const v = rec.d[col.c-1];
+      return '<div class="campo ro"><label>'+esc(limpiar(col.label))+'</label><div class="valor">'+(v===''?'—':esc(v))+'</div></div>';
+    }
+    const val = rec ? rec.v[col.c-1] : (col.hoy ? hoyIso() : '');
+    return campoHtml(col, val);
+  }).join('') + '</form>' + (nuevo ? '<p class="sub" style="margin:4px 0 0">Las columnas automáticas (ID, semana, alertas, totales) se calculan en el Sheet al guardar.</p>' : '');
+  const titulo = nuevo ? 'Nuevo · '+m.titulo : (m.columnas[0].auto && rec.d[0] ? rec.d[0]+' · ' : '') + m.titulo + ' (fila '+rec.f+')';
+  modal(titulo, html, '<button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" id="b-guardar">'+(nuevo?'Guardar registro':'Guardar cambios')+'</button>');
+  $('#b-guardar').onclick = () => guardar(k, rec);
+}
+
+async function guardar(k, rec){
+  const m = S.meta[k], datos = {}, faltan = [];
+  m.columnas.filter(c => !c.auto).forEach(col => {
+    const el = $('#f-reg [name="c'+col.c+'"]');
+    if (!el) return;
+    datos[col.c] = el.value;
+    if (col.req && !String(el.value).trim()) faltan.push(limpiar(col.label));
+  });
+  if (faltan.length) return errModal('Completa: ' + faltan.join(', ') + '.');
+  const b = $('#b-guardar'); b.disabled = true; b.textContent = 'Guardando…';
+  try {
+    const r = await api('guardarRegistro', k, datos, rec ? rec.f : null, rec ? rec.d : null);
+    const i = S.data[k].findIndex(x => x.f === r.f);
+    if (i >= 0) S.data[k][i] = r; else S.data[k].push(r);
+    cerrarModal(); toast(rec ? 'Cambios guardados' : 'Registro guardado en la fila ' + r.f);
+    if (S.tab === k) vistaHoja(k);
+  } catch(e){ errModal(e.message); b.disabled = false; b.textContent = rec ? 'Guardar cambios' : 'Guardar registro'; }
+}
+
+/* ======================== Graduados (grid trimestral) ======================== */
+async function vistaGrad(pest, recargar){
+  if (!S.grad || recargar || (pest && pest !== S.grad.pestana)){
+    cargando();
+    try { S.grad = await api('getGraduados', pest || (S.grad && S.grad.pestana) || ''); } catch(e){ return errVista(e); }
+    if (S.tab !== 'graduados') return;
+    if (pest) S.gf = {q:'', cmc:'', est:'', mes:''};
+  }
+  const g = S.grad, f = S.gf;
+  const uniq = i => [...new Set(g.filas.map(r => String(r.d[i]).trim()).filter(x => x && !/^-+$/.test(x)))].sort((a,b)=>a.localeCompare(b));
+  const meses = [...new Set(g.filas.map(r => r.mes).filter(Boolean))];
+  const opt = (arr, sel, todos) => '<option value="">'+todos+'</option>' + arr.map(x=>'<option'+(x===sel?' selected':'')+'>'+esc(x)+'</option>').join('');
+
+  $('#vista').innerHTML =
+    '<div class="vh"><div><h1>Graduados</h1><p class="sub">Consulta del Grid trimestral (solo lectura)</p></div>'+
+    '<div class="acciones"><select id="g-pest" style="width:auto">'+g.pestanas.map(p=>'<option'+(p===g.pestana?' selected':'')+'>'+esc(p)+'</option>').join('')+'</select>'+
+    '<button class="btn sec" id="g-rec">↻ Actualizar</button></div></div>'+
+    '<div class="filtros"><input type="search" id="g-q" placeholder="Buscar miembro, teléfono, observación…" value="'+esc(f.q)+'">'+
+    (meses.length > 1 ? '<select id="g-mes">'+opt(meses, f.mes, 'Todos los meses')+'</select>' : '')+
+    '<select id="g-cmc">'+opt(uniq(3), f.cmc, 'Todos los CMC')+'</select>'+
+    '<select id="g-est">'+opt(uniq(6), f.est, 'Todos los estados')+'</select></div>'+
+    '<div class="chips" id="g-chips"></div>'+
+    '<div class="tabla-wrap"><table><thead><tr>'+(meses.length?'<th>Mes</th>':'')+g.columnas.slice(0,10).map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody id="g-tb"></tbody></table></div>';
+
+  $('#g-pest').onchange = e => vistaGrad(e.target.value);
+  $('#g-rec').onclick = () => vistaGrad(g.pestana, true);
+  $('#g-q').oninput = e => { f.q = e.target.value; pintarGrad(); };
+  $('#g-cmc').onchange = e => { f.cmc = e.target.value; pintarGrad(); };
+  $('#g-est').onchange = e => { f.est = e.target.value; pintarGrad(); };
+  if ($('#g-mes')) $('#g-mes').onchange = e => { f.mes = e.target.value; pintarGrad(); };
+  pintarGrad();
+}
+function pintarGrad(){
+  const g = S.grad, f = S.gf, q = f.q.trim().toLowerCase();
+  const conMes = g.filas.some(r => r.mes);
+  const filas = g.filas.filter(r =>
+    (!f.mes || r.mes === f.mes) && (!f.cmc || String(r.d[3]).trim() === f.cmc) &&
+    (!f.est || String(r.d[6]).trim() === f.est) && (!q || r.d.join(' ').toLowerCase().indexOf(q) >= 0));
+  const cuenta = {};
+  filas.forEach(r => { const e = String(r.d[6]).trim() || 'Sin estado'; cuenta[e] = (cuenta[e]||0) + 1; });
+  $('#g-chips').innerHTML = '<span class="badge">'+filas.length+' registros</span>' + Object.keys(cuenta).sort().map(e => '<span class="badge '+claseBadge(e)+'">'+esc(e)+': '+cuenta[e]+'</span>').join('');
+  $('#g-tb').innerHTML = filas.length ? filas.map(r => '<tr>'+(conMes?'<td>'+esc(r.mes)+'</td>':'')+r.d.slice(0,10).map((v,i) =>
+    i === 6 && v ? '<td><span class="badge '+claseBadge(v)+'">'+esc(v)+'</span></td>' : '<td><div class="trunc" title="'+esc(v)+'">'+esc(v)+'</div></td>').join('')+'</tr>').join('')
+    : '<tr><td colspan="11"><div class="vacio">No hay graduados con estos filtros.</div></td></tr>';
+}
+
+/* ======================== Usuarios (admin) ======================== */
+async function vistaUsuarios(){
+  cargando();
+  let us;
+  try { us = await api('listarUsuarios'); } catch(e){ return errVista(e); }
+  if (S.tab !== 'usuarios') return;
+  $('#vista').innerHTML =
+    '<div class="vh"><div><h1>Usuarios</h1><p class="sub">'+us.filter(u=>u.activo).length+' activos de '+us.length+'</p></div>'+
+    '<div class="acciones"><button class="btn" id="u-nuevo">+ Nuevo usuario</button></div></div>'+
+    '<div class="tabla-wrap" style="max-height:none"><table><thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Último acceso</th><th></th></tr></thead><tbody>'+
+    us.map((u,i) => '<tr><td><b>'+esc(u.usuario)+'</b></td><td>'+esc(u.nombre)+'</td>'+
+      '<td><span class="badge '+(u.rol==='admin'?'b-info':'')+'">'+(u.rol==='admin'?'Administrador':'Usuario')+'</span></td>'+
+      '<td><span class="badge '+(u.activo?'b-ok':'b-bad')+'">'+(u.activo?'Activo':'Inactivo')+'</span></td>'+
+      '<td>'+esc(u.ultimo||'—')+'</td><td><button class="btn sec sm" data-i="'+i+'">Editar</button></td></tr>').join('')+
+    '</tbody></table></div>';
+  $('#u-nuevo').onclick = () => formUsuario(null);
+  $('#vista').querySelectorAll('button[data-i]').forEach(b => b.onclick = () => formUsuario(us[Number(b.dataset.i)]));
+}
+function formUsuario(u){
+  const nuevo = !u;
+  modal(nuevo ? 'Nuevo usuario' : 'Editar usuario',
+    '<div class="campo"><label>Usuario (para iniciar sesión)</label><input type="text" id="u-u" value="'+esc(u?u.usuario:'')+'" '+(nuevo?'':'disabled')+' placeholder="ej. maria.lopez"></div>'+
+    '<div class="campo"><label>Nombre completo</label><input type="text" id="u-n" value="'+esc(u?u.nombre:'')+'"></div>'+
+    '<div class="campo"><label>Rol</label><select id="u-r"><option value="usuario">Usuario · registra, consulta y edita</option><option value="admin"'+(u&&u.rol==='admin'?' selected':'')+'>Administrador · además gestiona usuarios</option></select></div>'+
+    '<div class="campo"><label>'+(nuevo?'Contraseña (mínimo 6)':'Nueva contraseña (déjala vacía para no cambiarla)')+'</label><input type="text" id="u-p" autocomplete="off"></div>'+
+    '<div class="campo"><label class="check"><input type="checkbox" id="u-a" '+(!u||u.activo?'checked':'')+'> Activo (puede iniciar sesión)</label></div>',
+    '<button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" id="u-ok">Guardar</button>', true);
+  $('#u-ok').onclick = async () => {
+    const b = $('#u-ok'); b.disabled = true;
+    try {
+      await api('guardarUsuario', {usuario:$('#u-u').value, nombre:$('#u-n').value, rol:$('#u-r').value, activo:$('#u-a').checked, pass:$('#u-p').value}, nuevo);
+      cerrarModal(); toast(nuevo ? 'Usuario creado' : 'Usuario actualizado'); vistaUsuarios();
+    } catch(e){ errModal(e.message); b.disabled = false; }
+  };
+}
+
+/* ======================== Bitácora (admin) ======================== */
+async function vistaBitacora(){
+  cargando();
+  let rows;
+  try { rows = await api('getBitacora'); } catch(e){ return errVista(e); }
+  if (S.tab !== 'bitacora') return;
+  $('#vista').innerHTML =
+    '<div class="vh"><div><h1>Bitácora</h1><p class="sub">Últimos '+rows.length+' movimientos en la web</p></div>'+
+    '<div class="acciones"><button class="btn sec" id="bt-rec">↻ Actualizar</button></div></div>'+
+    '<div class="tabla-wrap"><table><thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Acción</th><th>Hoja / detalle</th><th class="num">Fila</th></tr></thead><tbody>'+
+    (rows.length ? rows.map(r => '<tr>'+r.map((v,i)=>'<td'+(i===4?' class="num"':'')+'>'+esc(v)+'</td>').join('')+'</tr>').join('') : '<tr><td colspan="5"><div class="vacio">Sin movimientos todavía.</div></td></tr>')+
+    '</tbody></table></div>';
+  $('#bt-rec').onclick = vistaBitacora;
+}
+
+/* ======================== Arranque ======================== */
+$('#f-setup').addEventListener('submit', async e => {
+  e.preventDefault();
+  const b = $('#s-btn'), er = $('#setup-err');
+  er.hidden = true;
+  if ($('#s-p').value !== $('#s-r').value){ er.textContent = 'Las contraseñas no coinciden.'; er.hidden = false; return; }
+  b.disabled = true; b.textContent = 'Creando…';
+  try {
+    const r = await run('crearPrimerAdmin', $('#s-u').value, $('#s-n').value, $('#s-p').value);
+    S.token = r.token; store.set(r.token);
+    await iniciar();
+  } catch(err){ er.textContent = err.message; er.hidden = false; }
+  b.disabled = false; b.textContent = 'Crear y entrar';
+});
+
+(async function(){
+  try {
+    if (await run('necesitaConfiguracion')){ $('#login').hidden = true; $('#setup').hidden = false; return; }
+  } catch(e){ /* si falla, sigue al login normal */ }
+  const t = store.get();
+  if (t){ S.token = t; iniciar().catch(() => { S.token = null; store.set(null); mostrarLogin(); }); }
+  else mostrarLogin();
+})();
+</script>
+</body>
+</html>
