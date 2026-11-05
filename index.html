@@ -176,7 +176,7 @@ const store = {
   set(t){ try { t ? sessionStorage.setItem('calp5_tok', t) : sessionStorage.removeItem('calp5_tok'); } catch(e){} }
 };
 /* ======== CONFIGURACIÓN: pega aquí el enlace de tu implementación de Apps Script ======== */
-const API_URL = 'PEGA_AQUI_LA_URL_DE_APPS_SCRIPT'; // termina en /exec
+const API_URL = 'https://script.google.com/macros/s/AKfycbyYNRoj66K7LPVJkyU21uqWAuB_wMPxztapM5Lpl_pv3u88mg9tTf3h2h4LjR5KUoLCXQ/exec'; // termina en /exec
 
 async function run(fn, ...args){
   if (API_URL.indexOf('script.google.com') < 0) throw new Error('Falta configurar API_URL en index.html.');
