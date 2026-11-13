@@ -238,6 +238,17 @@ const pct = (a,b) => b ? Math.round(a/b*1000)/10 + '%' : '—';
 const fmtMMSS = v => { if (v === '' || v == null || isNaN(Number(v))) return v == null ? '' : String(v); const t = Math.round(Number(v)*60), a = Math.abs(t); return (t<0?'-':'') + Math.floor(a/60) + ':' + String(a%60).padStart(2,'0'); };
 // Minutos decimales → "1 h 05 min" o "12:30 min"
 const fmtDur = v => { const t = Math.round((Number(v)||0)*60); if (!t) return '0 min'; const h = Math.floor(t/3600), m = Math.floor(t%3600/60), sg = t%60; return h ? h+' h '+String(m).padStart(2,'0')+' min' : m+':'+String(sg).padStart(2,'0')+' min'; };
+// Texto o número de tiempo → minutos (vacío/ inválido → NaN)
+const aMin = v => typeof v === 'number' ? v : parseMMSS(v);
+// Minutos escuchados de un registro: usa lo que calcula el Sheet y, si está vacío, lo calcula con las columnas de tiempo
+function escuchadoTxt(m, r){
+  const calc = m.columnas.find(c => c.calcMmss), dSheet = calc ? String(r.d[calc.c-1]||'').trim() : '';
+  if (dSheet && /^\d+:\d{2}$/.test(dSheet)) return dSheet;
+  const desde = m.columnas.find(c => c.t === 'mmss' && !c.minCol), hasta = m.columnas.find(c => c.minCol);
+  if (!desde || !hasta) return dSheet;
+  const a = aMin(r.v[desde.c-1]), b = aMin(r.v[hasta.c-1]);
+  return isNaN(a) || isNaN(b) || String(r.v[desde.c-1]).trim()==='' || String(r.v[hasta.c-1]).trim()==='' ? '' : fmtMMSS(Math.max(0, b - a));
+}
 // "2:30" → 2.5 · "1:02:30" → 62.5 · "3" → 3 · inválido → NaN
 const parseMMSS = v => { const x = String(v||'').trim().replace(',','.'); let m; if (/^\d+(\.\d+)?$/.test(x)) return Number(x); if ((m = x.match(/^(\d+):([0-5]?\d)$/))) return +m[1] + m[2]/60; if ((m = x.match(/^(\d+):([0-5]\d):([0-5]\d)$/))) return m[1]*60 + +m[2] + m[3]/60; return NaN; };
 function toast(t){ const e = $('#toast'); e.textContent = t; e.classList.add('on'); clearTimeout(e._t); e._t = setTimeout(()=>e.classList.remove('on'), 2600); }
@@ -537,8 +548,10 @@ function pintarTabla(k){
   const vis = filas.slice(0, f.lim);
   $('#tb').innerHTML = vis.length ? vis.map(r => '<tr class="clic" data-f="'+r.f+'">' + m.tabla.map(c => {
     const col = m.columnas[c-1], v = r.d[c-1];
+    if (col.calcMmss) return '<td class="num">'+esc(escuchadoTxt(m, r))+'</td>';
     if (v === '' || v == null) return '<td></td>';
-    if (col.t === 'mmss' || col.fmt === 'mmss') return '<td class="num">'+esc(fmtMMSS(r.v[c-1]))+'</td>';
+    if (col.t === 'mmss') return '<td class="num">'+esc(fmtMMSS(r.v[c-1]))+'</td>';
+    if (col.t === 'tel') return '<td>'+esc(String(r.v[c-1]).replace(/\.0+$/,''))+'</td>';
     if (c === m.alerta || c === m.estado || col.l === 'cumple' || col.l === 'prioridad' || col.l === 'resultado' || (col.v && c !== m.consultor))
       return '<td><span class="badge '+(c===m.alerta?'b-warn':claseBadge(v))+'">'+esc(v)+'</span></td>';
     if (col.t === 'number' || (col.auto && /^[\d.,%\s-]+$/.test(v))) return '<td class="num">'+esc(v)+'</td>';
@@ -563,6 +576,8 @@ function campoHtml(col, val){
     input = '<input type="date" name="'+id+'" value="'+esc(val)+'">';
   } else if (col.t === 'mmss'){
     input = '<input type="text" inputmode="numeric" placeholder="mm:ss  (ej. 2:30)" name="'+id+'" value="'+esc(val === '' ? '' : fmtMMSS(val))+'" data-mmss="1">';
+  } else if (col.t === 'tel'){
+    input = '<input type="tel" inputmode="tel" name="'+id+'" value="'+esc(String(val).replace(/\.0+$/,''))+'">';
   } else if (col.t === 'number'){
     input = '<input type="number" step="any" min="0" name="'+id+'" value="'+esc(val)+'">';
   } else if (col.t === 'area'){
@@ -598,7 +613,7 @@ function abrirForm(k, rec){
   const html = '<form id="f-reg" class="grid-form" onsubmit="return false">' + m.columnas.map(col => {
     if (col.auto){
       if (nuevo) return '';
-      const v = col.fmt === 'mmss' ? fmtMMSS(rec.v[col.c-1]) : rec.d[col.c-1];
+      const v = col.calcMmss ? escuchadoTxt(m, rec) : rec.d[col.c-1];
       return '<div class="campo ro" data-c="'+col.c+'"><label>'+esc(limpiar(col.label))+'</label><div class="valor">'+(v===''?'—':esc(v))+'</div></div>';
     }
     const val = rec ? rec.v[col.c-1] : (col.hoy ? hoyIso() : '');
@@ -615,7 +630,7 @@ function abrirForm(k, rec){
 function prepararTiempos(m){
   const campos = [...document.querySelectorAll('#f-reg [data-mmss]')];
   if (!campos.length) return;
-  const calc = m.columnas.find(c => c.fmt === 'mmss');
+  const calc = m.columnas.find(c => c.calcMmss);
   const desde = m.columnas.find(c => c.t === 'mmss' && !c.minCol), hasta = m.columnas.find(c => c.minCol);
   let prev = null;
   if (calc && desde && hasta){
@@ -634,8 +649,10 @@ function prepararTiempos(m){
   campos.forEach(el => {
     el.addEventListener('blur', () => {
       const x = el.value.trim();
-      if (/^\d{3,4}$/.test(x)) el.value = x.slice(0,-2) + ':' + x.slice(-2); // 230 → 2:30
-      el.classList.toggle('inv', !!el.value.trim() && isNaN(parseMMSS(el.value)));
+      if (/^\d{3,4}$/.test(x)) el.value = x.slice(0,-2) + ':' + x.slice(-2); // 245 → 2:45
+      const n = parseMMSS(el.value);
+      if (el.value.trim() && !isNaN(n)) el.value = fmtMMSS(n);                  // 3 → 3:00 · 2:5 → 2:05
+      el.classList.toggle('inv', !!el.value.trim() && isNaN(n));
       act();
     });
     el.addEventListener('input', act);
