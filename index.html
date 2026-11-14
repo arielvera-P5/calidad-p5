@@ -112,6 +112,38 @@
   #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 18px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:60}
   #toast.on{opacity:1}
 
+  /* Reporte escrito */
+  .rep-ctrl{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px 0;margin-bottom:14px}
+  .rep-ctrl .campo{flex:1 1 150px;max-width:230px}
+  .rep-ctrl .rep-rap{flex:2 1 320px;max-width:none}
+  .rep-grid{display:grid;grid-template-columns:minmax(280px,380px) 1fr;gap:14px;align-items:start}
+  .rep-card{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px;margin-bottom:12px}
+  .rep-card h3{margin:0 0 10px;font-size:15px}
+  .rep-st{font-size:12px;font-weight:700;color:var(--tx2);margin:12px 0 6px}
+  .rep-ops{display:flex;flex-direction:column;gap:6px;max-height:340px;overflow:auto;padding-right:4px}
+  .rep-op{display:flex;gap:9px;align-items:flex-start;font-size:13px;font-weight:400;color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;cursor:pointer;margin:0}
+  .rep-op:has(input:checked){border-color:var(--acc);background:#f0faf8}
+  .rep-op input{width:auto;margin-top:3px;flex:none}
+  .rep-op-t{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .rep-op small{display:block;color:var(--tx2);margin-top:3px}
+  .rep-card textarea{min-height:70px}
+  .rep-out{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px;position:sticky;top:12px}
+  .rep-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .rep-aviso{background:var(--warnbg);color:var(--warn);padding:8px 12px;border-radius:8px;font-size:13px;margin-bottom:10px}
+  #rep-txt{min-height:calc(100vh - 300px);font-size:13.5px;line-height:1.55;white-space:pre-wrap}
+  #print-area{display:none}
+  .rep-modo{display:inline-flex;background:#e8ecf3;border-radius:10px;padding:3px;margin-bottom:12px;gap:2px;flex-wrap:wrap}
+  .rep-modo button{border:0;background:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:600;color:var(--tx2)}
+  .rep-modo button.on{background:#fff;color:var(--navy);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .btn.ia{background:linear-gradient(135deg,#5b4bdb,#0e8a7e)} .btn.ia:hover{filter:brightness(1.08)}
+  #rep-txt.cargando-ia{opacity:.55}
+  @media print{
+    body>*:not(#print-area){display:none!important}
+    #print-area{display:block!important;white-space:pre-wrap;font:11pt/1.5 Inter,system-ui,sans-serif;color:#000;background:#fff}
+    html,body{background:#fff}
+  }
+  @media (max-width:900px){ .rep-grid{grid-template-columns:1fr} .rep-out{position:static} #rep-txt{min-height:480px} }
+
   /* Selector de sucursal */
   .suc-card{max-width:520px}
   .suc-btns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -195,6 +227,7 @@
   </div>
 </div>
 <div id="toast"></div>
+<div id="print-area"></div>
 
 <script>
 /* ======================== Utilidades ======================== */
@@ -299,7 +332,7 @@ $('#b-suc').onclick = () => { storeSuc.set(null); mostrarSucursal(); };
 $('#suc-salir').onclick = () => salir();
 function salir(silencioso){
   if (S.token && !silencioso) run('logout', S.token).catch(()=>{});
-  S.token = null; S.data = {}; S.grad = null; S.suc = null; store.set(null); storeSuc.set(null); cerrarModal(); mostrarLogin();
+  S.token = null; S.data = {}; S.grad = null; S.suc = null; S.rep = null; S.repS = null; store.set(null); storeSuc.set(null); cerrarModal(); mostrarLogin();
 }
 $('#b-salir').onclick = () => salir();
 $('#b-pass').onclick = () => {
@@ -321,6 +354,7 @@ function tabs(){
   const t = [{k:'resumen',t:'Resumen'}];
   Object.keys(S.meta).filter(k => S.meta[k].suc === S.suc).forEach(k => t.push({k, t:S.meta[k].titulo}));
   if (S.suc === 'p5') t.push({k:'graduados', t:'Graduados (grid)'});
+  if (S.suc === 'cc') t.push({k:'reporte', t:'Reporte'});
   if (S.user.rol === 'admin'){ t.push({k:'usuarios', t:'Usuarios'}); t.push({k:'bitacora', t:'Bitácora'}); }
   return t;
 }
@@ -336,6 +370,7 @@ function ir(k){
   else if (k === 'graduados') vistaGrad();
   else if (k === 'usuarios') vistaUsuarios();
   else if (k === 'bitacora') vistaBitacora();
+  else if (k === 'reporte') vistaReporte();
 }
 
 /* ======================== Resumen ======================== */
@@ -491,6 +526,496 @@ async function vistaResumenCC(sem){
   $('#vista').querySelectorAll('a.lnk[data-c]').forEach(a => a.onclick = () => {
     S.filtros.cc_monitoreo = Object.assign(filtros('cc_monitoreo'), {cons:a.dataset.c, est:S.sucCC||'', q:'', lim:50}); ir('cc_monitoreo');
   });
+}
+
+/* ======================== Reporte escrito (CC1 // CC4) ======================== */
+const META_MIN_AREA = 60; // minutos mínimos de escucha por área (por día)
+const normTxt = s => String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const STOP = new Set(normTxt('para como pero que con por los las del una uno unos unas este esta esto estos estas ese esa eso esos esas sus sin sobre entre cuando donde muy mas más ya les nos solo también cual porque desde hasta todo toda todos todas otro otra otros otras cada mismo misma algo nada poco mucho puede pueda podía tiene tenía hace hizo esta está estaba sea son fue era ser hay bien manera forma momento persona miembro cliente señora sra llamada').split(' '));
+const DIAS_C = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+const diaLargo = iso => DIAS_C[new Date(iso+'T12:00').getDay()] + ' ' + fmt(iso);
+const viernesDe = iso => addDias(iso, -((new Date(iso+'T12:00').getDay() - 5 + 7) % 7));
+const sumMin = arr => arr.reduce((a,x) => a + (Number(x.min)||0), 0);
+// Varias líneas → un solo párrafo, agregando punto entre líneas cuando falta
+const unaLinea = t => String(t||'').split(/\n+/).map(x => x.replace(/^[\s\-•*·–—]+/, '').trim()).filter(Boolean)
+  .reduce((acc, x) => !acc ? x : acc + (/[.;:!?]$/.test(acc) ? ' ' : '. ') + x, '');
+
+function periodoRapido(tipo){
+  const h = hoyIso(), vie = viernesDe(h);
+  return { hoy:[h,h], ayer:[addDias(h,-1),addDias(h,-1)], semana:[vie, addDias(vie,6)], anterior:[addDias(vie,-7), addDias(vie,-1)] }[tipo];
+}
+
+// Separa "Puntos principales que requieren corrección" en puntos y les da un puntaje:
+// los que comparten palabras con otros puntos son temas que se repiten.
+function oportunidades(mons){
+  const items = [];
+  mons.forEach((m,i) => String(m.mejora||'').split(/\n+/)
+    .map(x => x.replace(/^[\s\-•*·–—]+/, '').replace(/^\d+[.)]\s*/, '').trim())
+    .filter(x => x.length > 3)
+    .forEach((t,j) => items.push({ id: m.fecha+'|'+m.consultor+'|'+i+'|'+j, t, c: m.consultor, f: m.fecha })));
+  const sets = items.map(it => [...new Set(normTxt(it.t).split(/[^a-z0-9ñ]+/).filter(w => w.length >= 4 && !STOP.has(w)))]);
+  items.forEach((it,i) => { it.score = sets[i].reduce((a,w) => a + sets.filter((s,j) => j !== i && s.includes(w)).length, 0); });
+  return items;
+}
+function porDefecto(items){
+  // Los 3 con más puntaje, procurando no repetir consultor si hay de dónde escoger
+  const orden = items.slice().sort((a,b) => b.score - a.score || (a.f < b.f ? 1 : -1));
+  const elegidos = [];
+  orden.forEach(it => { if (elegidos.length < 3 && !elegidos.some(e => e.c === it.c)) elegidos.push(it); });
+  orden.forEach(it => { if (elegidos.length < 3 && !elegidos.includes(it)) elegidos.push(it); });
+  return elegidos.map(it => it.id);
+}
+
+function areasReporte(){ const R = S.rep; return R.area ? [R.area] : R.datos.areas; }
+
+function bloqueArea(a){
+  const R = S.rep, d = R.datos, unDia = R.desde === R.hasta;
+  const mons = d.monitoreos.filter(m => m.area === a), segs = d.seguimientos.filter(x => x.area === a);
+  const minM = sumMin(mons), minS = sumMin(segs), tot = minM + minS;
+  const dias = [...new Set(mons.concat(segs).map(x => x.fecha))].sort();
+  const minDia = f => sumMin(mons.filter(m => m.fecha === f)) + sumMin(segs.filter(x => x.fecha === f));
+  const L = [];
+
+  L.push('1. Área monitoreada', a, '');
+
+  L.push('2. Tiempo total dedicado a escuchar llamadas');
+  L.push(fmtDur(tot) + ' (monitoreo ' + fmtDur(minM) + ' · seguimiento ' + fmtDur(minS) + ').');
+  if (unDia) {
+    L.push(tot >= META_MIN_AREA ? 'Cumple el mínimo de 1 hora por área.' : 'No cumple el mínimo de 1 hora por área (faltan ' + fmtDur(META_MIN_AREA - tot) + ').');
+  } else if (dias.length) {
+    L.push('Por día (mínimo 1 hora por área):');
+    dias.forEach(f => { const m = minDia(f); L.push('- ' + diaLargo(f) + ': ' + fmtDur(m) + ' — ' + (m >= META_MIN_AREA ? 'cumple' : 'no cumple, faltan ' + fmtDur(META_MIN_AREA - m))); });
+  }
+  L.push('');
+
+  const cons = [...new Set(mons.concat(segs).map(x => x.consultor).filter(Boolean))].sort((x,y) => x.localeCompare(y));
+  L.push('3. Consultores Low Performers monitoreados');
+  if (cons.length) cons.forEach(c => L.push('- ' + c)); else L.push('- Ninguno en el período.');
+  L.push('');
+
+  L.push('4. Cantidad de llamadas escuchadas por consultor');
+  cons.forEach(c => {
+    const nm = mons.filter(m => m.consultor === c), ns = segs.filter(x => x.consultor === c), n = nm.length + ns.length;
+    L.push('- ' + c + ': ' + n + ' llamada' + (n === 1 ? '' : 's') + ' (' + nm.length + ' de monitoreo, ' + ns.length + ' de seguimiento) · ' + fmtDur(sumMin(nm) + sumMin(ns)));
+  });
+  if (cons.length) L.push('Total: ' + (mons.length + segs.length) + ' llamadas.'); else L.push('- No se escucharon llamadas en el período.');
+  L.push('');
+
+  const ops = R.ops[a] || [], sel = (R.sel[a] || []).map(id => ops.find(o => o.id === id)).filter(Boolean);
+  L.push('5. Principales tres oportunidades de mejora identificadas');
+  if (sel.length) sel.forEach((o,i) => L.push((i+1) + ') ' + unaLinea(o.t) + ' (' + o.c + ')')); else L.push('- No se registraron oportunidades de mejora en el período.');
+  L.push('');
+
+  const corr = mons.filter(m => m.correccion);
+  L.push('6. Correcciones o entrenamientos realizados');
+  if (corr.length) corr.forEach(m => L.push('- ' + m.consultor + ' (' + fmt(m.fecha) + '): ' + unaLinea(m.correccion)));
+  else L.push('- No se registraron correcciones en el período.');
+  L.push('');
+
+  const ev = mons.filter(m => m.supervisor === 'Sí' || m.supervisor === 'No'), si = ev.filter(m => m.supervisor === 'Sí'), no = ev.filter(m => m.supervisor === 'No');
+  L.push('7. Confirmación de participación del supervisor directo');
+  if (!ev.length) L.push('Sin registro de participación del supervisor en el período.');
+  else {
+    L.push('El supervisor directo participó en ' + si.length + ' de ' + ev.length + ' monitoreo' + (ev.length === 1 ? '' : 's') + ' (' + pct(si.length, ev.length) + ').');
+    if (si.length) L.push('Con participación: ' + si.map(m => m.consultor + ' (' + fmt(m.fecha) + ')').join(', ') + '.');
+    if (no.length) L.push('Sin participación: ' + no.map(m => m.consultor + ' (' + fmt(m.fecha) + ')').join(', ') + '.');
+  }
+  L.push('');
+
+  const pend = {};
+  d.pendientes.filter(p => p.area === a).forEach(p => {
+    (pend[p.consultor] = pend[p.consultor] || []).push(p.motivo === 'seguimiento'
+      ? 'su último seguimiento (' + fmt(p.fecha) + ') indica que necesita otro'
+      : 'corrección no inmediata el ' + fmt(p.fecha) + ', sin seguimiento posterior');
+  });
+  L.push('8. Consultores que requieren seguimiento adicional');
+  const pk = Object.keys(pend).sort((x,y) => x.localeCompare(y));
+  if (pk.length) pk.forEach(c => L.push('- ' + c + ': ' + [...new Set(pend[c])].join('; ') + '.')); else L.push('- Ninguno.');
+  L.push('');
+
+  const sit = [];
+  if (!tot) sit.push('No se registró escucha de llamadas en esta área durante el período.');
+  else if (unDia && tot < META_MIN_AREA) sit.push('No se alcanzó el mínimo de 1 hora de escucha (faltaron ' + fmtDur(META_MIN_AREA - tot) + ').');
+  else if (!unDia) { const bajos = dias.filter(f => minDia(f) < META_MIN_AREA); if (bajos.length) sit.push('No se alcanzó el mínimo de 1 hora de escucha: ' + bajos.map(f => diaLargo(f) + ' (' + fmtDur(minDia(f)) + ')').join(', ') + '.'); }
+  mons.filter(m => m.inmediata === 'No').forEach(m => sit.push(m.consultor + ' (' + fmt(m.fecha) + '): la corrección no se hizo de inmediato' + (m.justificacion ? ' — ' + unaLinea(m.justificacion) : ' (sin justificación registrada)') + '.'));
+  String(R.otras[a] || '').split(/\n+/).map(x => x.replace(/^[\s\-•]+/, '').trim()).filter(Boolean).forEach(x => sit.push(x));
+  L.push('9. Situaciones que hayan impedido completar el monitoreo');
+  if (sit.length) sit.forEach(x => L.push('- ' + x)); else L.push('No aplica.');
+
+  return L.join('\n');
+}
+
+function textoReporte(){
+  const R = S.rep;
+  const per = R.desde === R.hasta ? diaLargo(R.desde) : 'del ' + diaLargo(R.desde) + ' al ' + diaLargo(R.hasta);
+  const areas = areasReporte();
+  let t = 'REPORTE DE MONITOREO DE LLAMADAS — ' + (areas.length > 1 ? areas.join(' // ') : areas[0]) + '\n' +
+          'Período: ' + per + '\n' + 'Elaborado por: ' + S.user.nombre + '\n';
+  areas.forEach(a => { t += '\n' + '────────────────────────────────────────\n' + 'ÁREA ' + a + '\n' + '────────────────────────────────────────\n\n' + bloqueArea(a) + '\n'; });
+  return t;
+}
+
+async function vistaReporte(recargar){
+  if (S.repModo === 'semana') return vistaSemanal(recargar);
+  const h = hoyIso();
+  const R = S.rep || (S.rep = { area:'', desde:h, hasta:h, datos:null, clave:'', ops:{}, sel:{}, otras:{}, editado:false });
+  const areasOp = (S.meta.cc_monitoreo && opcionesDe(S.meta.cc_monitoreo.columnas[2])) || ['CC1','CC4'];
+  $('#vista').innerHTML =
+    '<div class="vh"><div><h1>Reporte escrito</h1><p class="sub">Se arma con lo registrado en Monitoreo y Seguimiento. Puedes ajustarlo, redactarlo con IA y editar el texto antes de copiarlo.</p></div></div>'+
+    toggleReporteHtml()+
+    '<div class="rep-ctrl">'+
+      '<div class="campo"><label>Área</label><select id="r-area"><option value="">'+esc(areasOp.join(' y '))+' (por separado)</option>'+areasOp.map(x => '<option'+(x===R.area?' selected':'')+'>'+esc(x)+'</option>').join('')+'</select></div>'+
+      '<div class="campo"><label>Desde</label><input type="date" id="r-desde" value="'+R.desde+'"></div>'+
+      '<div class="campo"><label>Hasta</label><input type="date" id="r-hasta" value="'+R.hasta+'"></div>'+
+      '<div class="campo rep-rap"><label>Rápido</label><div class="acciones">'+
+        [['hoy','Hoy'],['ayer','Ayer'],['semana','Esta semana'],['anterior','Semana anterior']].map(x => '<button class="btn sec sm" data-r="'+x[0]+'">'+x[1]+'</button>').join('')+
+      '</div></div>'+
+    '</div>'+
+    '<div id="rep-cuerpo"><div class="cargando">Cargando…</div></div>';
+
+  bindToggleReporte();
+  const cambiarPeriodo = (a, b) => { R.desde = a; R.hasta = b < a ? a : b; vistaReporte(); };
+  $('#r-area').onchange = e => { R.area = e.target.value; R.editado = false; R.antesIA = null; if (R.datos && R.clave === R.desde + '|' + R.hasta) pintarReporte(); };
+  $('#r-desde').onchange = e => e.target.value && cambiarPeriodo(e.target.value, R.hasta < e.target.value ? e.target.value : R.hasta);
+  $('#r-hasta').onchange = e => e.target.value && cambiarPeriodo(R.desde > e.target.value ? e.target.value : R.desde, e.target.value);
+  $('#vista').querySelectorAll('[data-r]').forEach(b => b.onclick = () => { const p = periodoRapido(b.dataset.r); cambiarPeriodo(p[0], p[1]); });
+
+  const clave = R.desde + '|' + R.hasta;
+  if (!R.datos || recargar || R.clave !== clave){
+    try { R.datos = await api('getDatosReporteCC', R.desde, R.hasta); } catch(e){ $('#rep-cuerpo').innerHTML = '<div class="err">'+esc(e.message)+'</div>'; return; }
+    if (S.tab !== 'reporte' || S.repModo === 'semana' || R.desde + '|' + R.hasta !== clave) return;
+    R.clave = clave; R.ops = {}; R.sel = {}; R.editado = false; R.antesIA = null;
+  }
+  pintarReporte();
+}
+
+function pintarReporte(){
+  const R = S.rep, d = R.datos, areas = areasReporte();
+  areas.forEach(a => {
+    if (!R.ops[a]) R.ops[a] = oportunidades(d.monitoreos.filter(m => m.area === a));
+    if (!R.sel[a]) R.sel[a] = porDefecto(R.ops[a]);
+  });
+  const n = d.monitoreos.length + d.seguimientos.length;
+
+  $('#rep-cuerpo').innerHTML =
+    '<div class="rep-grid">'+
+      '<div class="rep-aj">'+ areas.map(a => {
+        const ops = R.ops[a];
+        return '<div class="rep-card"><h3>Ajustes · '+esc(a)+'</h3>'+
+          '<div class="rep-st">Punto 5 · elige hasta 3 oportunidades <span class="sub" data-cnt="'+esc(a)+'"></span></div>'+
+          (ops.length ? '<div class="rep-ops">'+ops.map(o =>
+            '<label class="rep-op"><input type="checkbox" data-a="'+esc(a)+'" value="'+esc(o.id)+'"'+(R.sel[a].includes(o.id)?' checked':'')+'>'+
+            '<span><span class="rep-op-t">'+esc(o.t)+'</span><small>'+esc(o.c)+' · '+fmt(o.f)+'</small></span></label>').join('')+'</div>'
+            : '<p class="sub">No hay puntos de mejora registrados en este período.</p>')+
+          '<div class="rep-st">Punto 9 · otras situaciones (opcional)</div>'+
+          '<textarea data-otras="'+esc(a)+'" placeholder="Ej. Fallas en el sistema de grabaciones de 10:00 a 11:00">'+esc(R.otras[a]||'')+'</textarea>'+
+        '</div>';
+      }).join('') +'</div>'+
+      '<div class="rep-out">'+
+        '<div class="rep-bar"><div class="sub" id="rep-info">'+n+' registro'+(n===1?'':'s')+' en el período</div><div class="acciones">'+
+          '<button class="btn sec sm" id="rep-reg" hidden>↺ Volver a generar</button>'+
+          '<button class="btn sec sm" id="rep-undo" hidden>Deshacer IA</button>'+
+          '<button class="btn sm ia" id="rep-ia">✨ Redactar con IA</button>'+
+          '<button class="btn sec sm" id="rep-print">Imprimir / PDF</button>'+
+          '<button class="btn sec sm" id="rep-dl">Descargar .txt</button>'+
+          '<button class="btn sm" id="rep-copy">Copiar reporte</button>'+
+        '</div></div>'+
+        '<div class="rep-aviso" id="rep-aviso" hidden></div>'+
+        '<textarea id="rep-txt" spellcheck="true"></textarea>'+
+      '</div>'+
+    '</div>';
+
+  const txt = $('#rep-txt');
+  const contar = () => areas.forEach(a => { const e = $('[data-cnt="'+a+'"]'); if (e) e.textContent = '(' + R.sel[a].length + ' de 3)'; });
+  const generar = (forzar) => {
+    if (R.editado && !forzar) { const a = $('#rep-aviso'); a.hidden = false; a.textContent = 'Editaste el texto (o lo redactó la IA). Los ajustes no lo reemplazarán hasta que pulses «Volver a generar».'; $('#rep-reg').hidden = false; return; }
+    R.editado = false; R.antesIA = null; txt.value = R.texto = textoReporte(); $('#rep-aviso').hidden = true; $('#rep-reg').hidden = true; $('#rep-undo').hidden = true;
+  };
+  $('#rep-cuerpo').querySelectorAll('input[type=checkbox][data-a]').forEach(cb => cb.onchange = () => {
+    const a = cb.dataset.a, l = R.sel[a];
+    if (cb.checked) { if (l.length >= 3) { cb.checked = false; toast('Elige máximo 3 oportunidades'); return; } l.push(cb.value); }
+    else R.sel[a] = l.filter(x => x !== cb.value);
+    contar(); generar();
+  });
+  $('#rep-cuerpo').querySelectorAll('textarea[data-otras]').forEach(t => t.oninput = () => { R.otras[t.dataset.otras] = t.value; generar(); });
+  txt.oninput = () => { R.editado = true; R.texto = txt.value; $('#rep-reg').hidden = false; };
+  $('#rep-reg').onclick = () => generar(true);
+  prepararSalida(txt, () => 'Reporte monitoreo ' + (R.area || 'CC1-CC4') + ' ' + R.desde + (R.hasta !== R.desde ? ' a ' + R.hasta : '') + '.txt');
+  prepararIA(R, 'periodo', areas);
+  contar();
+  if (R.editado && R.texto) { txt.value = R.texto; $('#rep-reg').hidden = false; } else generar(true);
+}
+
+/* ======================== Reporte semanal (CC1 // CC4) ======================== */
+const fmtHoras = v => { const t = Math.round((Number(v)||0)); const h = Math.floor(t/60), m = t%60; return h ? h+' h '+String(m).padStart(2,'0')+' min' : fmtDur(v); };
+const corto = (t, n) => { t = unaLinea(t); return t.length > n ? t.slice(0, n).replace(/\s+\S*$/, '') + '…' : t; };
+const tituloDe = t => { const x = unaLinea(t); const i = x.indexOf(':'); return i > 3 && i < 70 ? x.slice(0, i) : corto(x, 90); };
+const pctTxt = (a, b) => b ? Math.round(a/b*100) + '%' : 'sin datos';
+
+function toggleReporteHtml(){
+  const m = S.repModo || 'dia';
+  return '<div class="rep-modo"><button class="'+(m==='dia'?'on':'')+'" data-modo="dia">Reporte del día / período</button><button class="'+(m==='semana'?'on':'')+'" data-modo="semana">Reporte semanal</button></div>';
+}
+function bindToggleReporte(){
+  $('#vista').querySelectorAll('[data-modo]').forEach(b => b.onclick = () => { S.repModo = b.dataset.modo; vistaReporte(); });
+}
+
+// Textos de respaldo para la IA (detalle completo de lo registrado)
+function respaldoIA(d, areas){
+  const L = [];
+  d.monitoreos.filter(m => areas.includes(m.area)).forEach(m => {
+    L.push('MONITOREO ' + fmt(m.fecha) + ' · ' + m.consultor + ' · ' + m.area + ' · ' + fmtDur(m.min) + ' · supervisor: ' + (m.supervisor||'—') + ' · corrección inmediata: ' + (m.inmediata||'—'));
+    if (m.mejora) L.push('  Puntos a corregir: ' + unaLinea(m.mejora));
+    if (m.correccion) L.push('  Corrección realizada: ' + unaLinea(m.correccion));
+    if (m.justificacion) L.push('  Justificación: ' + unaLinea(m.justificacion));
+  });
+  d.seguimientos.filter(x => areas.includes(x.area)).forEach(x => {
+    L.push('SEGUIMIENTO ' + fmt(x.fecha) + ' · ' + x.consultor + ' · ' + x.area + ' · ' + fmtDur(x.min) + ' · necesita otro: ' + (x.otro||'—'));
+    if (x.mejora) L.push('  Mejora observada: ' + unaLinea(x.mejora));
+  });
+  return L.join('\n');
+}
+
+// Botón "Redactar con IA" (común a los dos reportes)
+function prepararIA(R, tipo, areas){
+  const txt = $('#rep-txt'), b = $('#rep-ia'), undo = $('#rep-undo');
+  undo.hidden = !R.antesIA;
+  b.onclick = async () => {
+    if (!R.datos.ia) { $('#rep-aviso').hidden = false; $('#rep-aviso').innerHTML = 'Para usar la IA, el administrador debe guardar la clave de OpenAI en Apps Script: <b>Project Settings → Script Properties → OPENAI_API_KEY</b>.'; return; }
+    const orig = txt.value;
+    b.disabled = true; b.textContent = 'Redactando…'; txt.classList.add('cargando-ia');
+    try {
+      const r = await api('mejorarConIA', orig, respaldoIA(R.datos, areas), tipo);
+      R.antesIA = orig; R.editado = true; R.texto = r.texto; txt.value = r.texto;
+      undo.hidden = false; $('#rep-reg').hidden = false;
+      toast('Reporte redactado con IA (' + r.modelo + ')');
+    } catch(e){ $('#rep-aviso').hidden = false; $('#rep-aviso').textContent = e.message; }
+    b.disabled = false; b.textContent = '✨ Redactar con IA'; txt.classList.remove('cargando-ia');
+  };
+  undo.onclick = () => { if (R.antesIA != null){ txt.value = R.antesIA; R.texto = R.antesIA; R.antesIA = null; undo.hidden = true; toast('Se restauró el texto anterior'); } };
+}
+
+function textoSemanal(){
+  const R = S.repS, d = R.datos, areas = R.area ? [R.area] : d.areas;
+  const enA = x => areas.includes(x.area);
+  const mons = d.monitoreos.filter(enA), segs = d.seguimientos.filter(enA);
+  const pm = d.prev.monitoreos.filter(enA), ps = d.prev.seguimientos.filter(enA);
+  const hm = d.hist.monitoreos.filter(enA), hs = d.hist.seguimientos.filter(enA);
+  const todos = mons.concat(segs);
+  const cons = [...new Set(todos.map(x => x.consultor).filter(Boolean))].sort((a,b) => a.localeCompare(b));
+  const minM = sumMin(mons), minS = sumMin(segs), tot = minM + minS;
+  const L = [];
+  L.push('REPORTE SEMANAL DE MONITOREO — ' + areas.join(' // '));
+  L.push('Semana: ' + diaLargo(d.desde) + ' – ' + diaLargo(d.hasta));
+  L.push('Elaborado por: ' + S.user.nombre, '');
+
+  // 1
+  L.push('1. Total de horas dedicadas al monitoreo');
+  L.push(fmtHoras(tot) + ' (monitoreo ' + fmtHoras(minM) + ' · seguimiento ' + fmtHoras(minS) + ').');
+  areas.forEach(a => {
+    const xs = todos.filter(x => x.area === a), dias = [...new Set(xs.map(x => x.fecha))];
+    const ok = dias.filter(f => sumMin(xs.filter(x => x.fecha === f)) >= META_MIN_AREA).length;
+    if (areas.length > 1 || dias.length) L.push('- ' + a + ': ' + fmtHoras(sumMin(xs)) + (dias.length ? ' · cumplió la hora mínima en ' + ok + ' de ' + dias.length + ' día' + (dias.length===1?'':'s') + ' con escucha.' : ' · sin escucha registrada.'));
+  });
+  L.push('');
+
+  // 2
+  L.push('2. Total de consultores Low Performers atendidos');
+  L.push(cons.length + ' consultor' + (cons.length===1?'':'es') + (cons.length ? ': ' + cons.map(c => c + ' (' + [...new Set(todos.filter(x => x.consultor===c).map(x => x.area))].join(', ') + ')').join(', ') + '.' : '.'), '');
+
+  // 3
+  L.push('3. Total de llamadas escuchadas');
+  L.push((mons.length + segs.length) + ' llamadas (' + mons.length + ' de monitoreo y ' + segs.length + ' de seguimiento).');
+  if (areas.length > 1) areas.forEach(a => L.push('- ' + a + ': ' + todos.filter(x => x.area === a).length + ' llamadas.'));
+  L.push('');
+
+  // 4
+  const conCorr = cons.filter(c => mons.some(m => m.consultor === c && m.correccion));
+  L.push('4. Consultores que recibieron corrección y entrenamiento');
+  if (conCorr.length) conCorr.forEach(c => {
+    const cs = mons.filter(m => m.consultor === c && m.correccion);
+    L.push('- ' + c + ' (' + cs.length + ' corrección' + (cs.length===1?'':'es') + '): ' + cs.map(m => corto(m.correccion, 200)).join(' / '));
+  }); else L.push('- No se registraron correcciones esta semana.');
+  L.push('');
+
+  // 5
+  const ops = R.ops, sel = R.sel.map(id => ops.find(o => o.id === id)).filter(Boolean);
+  L.push('5. Principales problemas recurrentes identificados');
+  if (sel.length) sel.forEach((o,i) => {
+    const pals = new Set(normTxt(tituloDe(o.t)).split(/[^a-z0-9ñ]+/).filter(w => w.length >= 4 && !STOP.has(w)));
+    const quien = [...new Set(ops.filter(x => normTxt(x.t).split(/[^a-z0-9ñ]+/).some(w => pals.has(w))).map(x => x.c))];
+    L.push((i+1) + ') ' + corto(o.t, 220) + ' — observado en: ' + (quien.length ? quien : [o.c]).join(', ') + '.');
+  }); else L.push('- No se registraron problemas en los monitoreos de la semana.');
+  L.push('');
+
+  // 6
+  L.push('6. Mejoras observadas en los consultores intervenidos');
+  const conMej = segs.filter(x => x.mejora);
+  if (conMej.length) cons.forEach(c => {
+    const xs = conMej.filter(x => x.consultor === c);
+    if (!xs.length) return;
+    L.push('- ' + c + ': ' + xs.map(x => corto(x.mejora, 220) + ' (' + fmt(x.fecha) + (x.otro ? '; necesita otro seguimiento: ' + x.otro : '') + ')').join(' / '));
+  }); else L.push('- No hay seguimientos con mejoras registradas esta semana.');
+  L.push('');
+
+  // 7
+  const supEv = a => a.filter(m => m.supervisor === 'Sí' || m.supervisor === 'No');
+  const inmEv = a => a.filter(m => m.inmediata === 'Sí' || m.inmediata === 'No');
+  const okSeg = a => a.filter(x => x.otro === 'No').length, evSeg = a => a.filter(x => x.otro === 'Sí' || x.otro === 'No').length;
+  L.push('7. Comparación de las estadísticas antes y después de las intervenciones');
+  if (pm.length + ps.length) {
+    L.push('Semana actual vs. semana anterior (' + fmt(d.prev.desde) + ' – ' + fmt(d.prev.hasta) + '):');
+    L.push('- Tiempo de escucha: ' + fmtHoras(sumMin(pm) + sumMin(ps)) + ' → ' + fmtHoras(tot) + '.');
+    L.push('- Llamadas escuchadas: ' + (pm.length + ps.length) + ' → ' + (mons.length + segs.length) + '.');
+    L.push('- Consultores atendidos: ' + new Set(pm.concat(ps).map(x => x.consultor)).size + ' → ' + cons.length + '.');
+    L.push('- Promedio de puntos de mejora por monitoreo: ' + (pm.length ? (pm.reduce((a,m) => a + m.puntos, 0)/pm.length).toFixed(1) : 'sin datos') + ' → ' + (mons.length ? (mons.reduce((a,m) => a + m.puntos, 0)/mons.length).toFixed(1) : 'sin datos') + '.');
+    L.push('- Corrección inmediata: ' + pctTxt(inmEv(pm).filter(m => m.inmediata==='Sí').length, inmEv(pm).length) + ' → ' + pctTxt(inmEv(mons).filter(m => m.inmediata==='Sí').length, inmEv(mons).length) + '.');
+    L.push('- Participación del supervisor: ' + pctTxt(supEv(pm).filter(m => m.supervisor==='Sí').length, supEv(pm).length) + ' → ' + pctTxt(supEv(mons).filter(m => m.supervisor==='Sí').length, supEv(mons).length) + '.');
+    L.push('- Seguimientos que ya no requieren otro: ' + pctTxt(okSeg(ps), evSeg(ps)) + ' → ' + pctTxt(okSeg(segs), evSeg(segs)) + '.');
+  } else L.push('- No hay registros de la semana anterior para comparar.');
+  const porCons = cons.map(c => {
+    const ms = hm.filter(m => m.consultor === c).sort((a,b) => a.fecha < b.fecha ? -1 : 1), ss = hs.filter(x => x.consultor === c);
+    if (ms.length < 2 && !ss.length) return null;
+    const p = [];
+    if (ms.length >= 2) { const a = ms[0], b = ms[ms.length-1]; p.push('puntos de mejora ' + a.puntos + ' (' + fmt(a.fecha) + ') → ' + b.puntos + ' (' + fmt(b.fecha) + ')' + (b.puntos < a.puntos ? ', mejoró' : b.puntos > a.puntos ? ', empeoró' : ', sin cambio')); }
+    if (ss.length) p.push(okSeg(ss) + ' de ' + evSeg(ss) + ' seguimiento' + (evSeg(ss)===1?'':'s') + ' sin necesidad de otro');
+    return '- ' + c + ': ' + p.join('; ') + '.';
+  }).filter(Boolean);
+  if (porCons.length) { L.push('Por consultor intervenido (historial hasta el ' + fmt(d.hasta > d.hoy ? d.hoy : d.hasta) + '):'); porCons.forEach(x => L.push(x)); }
+  else L.push('- Aún no hay datos suficientes por consultor para comparar antes y después.');
+  L.push('');
+
+  // 8
+  const bajo = {};
+  const add = (c, m) => (bajo[c] = bajo[c] || []).push(m);
+  d.pendientes.filter(enA).forEach(p => add(p.consultor, p.motivo === 'seguimiento' ? 'su último seguimiento (' + fmt(p.fecha) + ') indica que necesita otro' : 'corrección no inmediata el ' + fmt(p.fecha) + ' sin seguimiento posterior'));
+  cons.forEach(c => {
+    const ms = hm.filter(m => m.consultor === c).sort((a,b) => a.fecha < b.fecha ? -1 : 1);
+    if (ms.length >= 2 && ms[ms.length-1].puntos >= ms[0].puntos && ms[ms.length-1].puntos > 0) add(c, 'sus puntos de mejora no han bajado (' + ms[0].puntos + ' → ' + ms[ms.length-1].puntos + ')');
+    if (!(bajo[c] || []).some(x => x.includes('sin seguimiento posterior')) && mons.some(m => m.consultor === c) && !hs.some(x => x.consultor === c && x.fecha >= mons.filter(m => m.consultor === c).map(m => m.fecha).sort()[0])) add(c, 'fue corregido esta semana y aún no tiene seguimiento para verificar avances');
+  });
+  const bk = Object.keys(bajo).sort((a,b) => a.localeCompare(b));
+  L.push('8. Consultores que continúan con bajo rendimiento y requieren mayor atención');
+  if (bk.length) bk.forEach(c => L.push('- ' + c + ': ' + [...new Set(bajo[c])].join('; ') + '.')); else L.push('- Ninguno identificado con los datos de la semana.');
+  L.push('');
+
+  // 9
+  const plan = [];
+  bk.forEach(c => {
+    const op = ops.filter(o => o.c === c).sort((a,b) => b.score - a.score)[0];
+    plan.push('Dar seguimiento a ' + c + (op ? ', enfocado en: ' + tituloDe(op.t) : '') + '.');
+  });
+  if (sel[0]) plan.push('Reforzar con el equipo el problema más recurrente: ' + tituloDe(sel[0].t) + '.');
+  areas.forEach(a => {
+    const xs = todos.filter(x => x.area === a), dias = [...new Set(xs.map(x => x.fecha))];
+    const bajos = dias.filter(f => sumMin(xs.filter(x => x.fecha === f)) < META_MIN_AREA).length;
+    if (!dias.length) plan.push('Programar escucha en ' + a + ' (esta semana no hubo registros).');
+    else if (bajos) plan.push('Cumplir la hora mínima diaria de escucha en ' + a + ' (no se alcanzó en ' + bajos + ' día' + (bajos===1?'':'s') + ').');
+  });
+  const ev = supEv(mons);
+  if (ev.length && ev.some(m => m.supervisor === 'No')) plan.push('Coordinar la participación del supervisor directo en los monitoreos (esta semana: ' + pctTxt(ev.filter(m => m.supervisor==='Sí').length, ev.length) + ').');
+  String(R.planExtra || '').split(/\n+/).map(x => x.replace(/^[\s\-•]+/, '').trim()).filter(Boolean).forEach(x => plan.push(x));
+  L.push('9. Plan de acción para la siguiente semana');
+  if (plan.length) plan.forEach(x => L.push('- ' + x)); else L.push('- Continuar con el monitoreo regular de los consultores asignados.');
+
+  return L.join('\n') + '\n';
+}
+
+async function vistaSemanal(recargar){
+  const h = hoyIso();
+  const R = S.repS || (S.repS = { area:'', semana: viernesDe(h), datos:null, clave:'', ops:[], sel:[], planExtra:'', editado:false, texto:'', antesIA:null });
+  const areasOp = (S.meta.cc_monitoreo && opcionesDe(S.meta.cc_monitoreo.columnas[2])) || ['CC1','CC4'];
+  const ini = R.semana, fin = addDias(ini, 6);
+  $('#vista').innerHTML =
+    '<div class="vh"><div><h1>Reporte semanal</h1><p class="sub">Semana de viernes a jueves. Puedes ajustarlo, redactarlo con IA y editar el texto antes de copiarlo.</p></div></div>'+
+    toggleReporteHtml()+
+    '<div class="rep-ctrl">'+
+      '<div class="campo"><label>Área</label><select id="r-area"><option value="">'+esc(areasOp.join(' y '))+' (juntas)</option>'+areasOp.map(x => '<option'+(x===R.area?' selected':'')+'>'+esc(x)+'</option>').join('')+'</select></div>'+
+      '<div class="campo"><label>Semana (elige cualquier día)</label><input type="date" id="r-sem" value="'+ini+'"></div>'+
+      '<div class="campo rep-rap"><label>Vie '+fmt(ini)+' – Jue '+fmt(fin)+'</label><div class="acciones">'+
+        '<button class="btn sec sm" data-s="-7">◀ Anterior</button><button class="btn sec sm" data-s="0">Esta semana</button><button class="btn sec sm" data-s="7">Siguiente ▶</button>'+
+      '</div></div>'+
+    '</div>'+
+    '<div id="rep-cuerpo"><div class="cargando">Cargando…</div></div>';
+  bindToggleReporte();
+  $('#r-area').onchange = e => { R.area = e.target.value; R.editado = false; R.antesIA = null; R.ops = []; R.sel = []; if (R.datos && R.clave === ini) pintarSemanal(); };
+  $('#r-sem').onchange = e => { if (e.target.value){ R.semana = viernesDe(e.target.value); vistaSemanal(); } };
+  $('#vista').querySelectorAll('[data-s]').forEach(b => b.onclick = () => { R.semana = b.dataset.s === '0' ? viernesDe(hoyIso()) : addDias(R.semana, Number(b.dataset.s)); vistaSemanal(); });
+
+  if (!R.datos || recargar || R.clave !== ini){
+    try { R.datos = await api('getDatosReporteCC', ini, fin); } catch(e){ $('#rep-cuerpo').innerHTML = '<div class="err">'+esc(e.message)+'</div>'; return; }
+    if (S.tab !== 'reporte' || S.repModo !== 'semana' || R.semana !== ini) return;
+    R.clave = ini; R.ops = []; R.sel = []; R.editado = false; R.antesIA = null;
+  }
+  pintarSemanal();
+}
+
+function pintarSemanal(){
+  const R = S.repS, d = R.datos, areas = R.area ? [R.area] : d.areas;
+  if (!R.ops.length) { R.ops = oportunidades(d.monitoreos.filter(m => areas.includes(m.area))); R.sel = porDefecto5(R.ops); }
+  const n = d.monitoreos.filter(m => areas.includes(m.area)).length + d.seguimientos.filter(x => areas.includes(x.area)).length;
+  $('#rep-cuerpo').innerHTML =
+    '<div class="rep-grid">'+
+      '<div class="rep-aj"><div class="rep-card"><h3>Ajustes</h3>'+
+        '<div class="rep-st">Punto 5 · problemas recurrentes, elige hasta 5 <span class="sub" id="cnt5"></span></div>'+
+        (R.ops.length ? '<div class="rep-ops">'+R.ops.map(o =>
+          '<label class="rep-op"><input type="checkbox" value="'+esc(o.id)+'"'+(R.sel.includes(o.id)?' checked':'')+'>'+
+          '<span><span class="rep-op-t">'+esc(o.t)+'</span><small>'+esc(o.c)+' · '+fmt(o.f)+'</small></span></label>').join('')+'</div>'
+          : '<p class="sub">No hay puntos de mejora registrados esta semana.</p>')+
+        '<div class="rep-st">Punto 9 · acciones propias para el plan (opcional, una por línea)</div>'+
+        '<textarea id="r-plan" placeholder="Ej. Taller grupal sobre manejo de originaciones el martes">'+esc(R.planExtra||'')+'</textarea>'+
+      '</div></div>'+
+      '<div class="rep-out">'+
+        '<div class="rep-bar"><div class="sub">'+n+' registro'+(n===1?'':'s')+' en la semana</div><div class="acciones">'+
+          '<button class="btn sec sm" id="rep-reg" hidden>↺ Volver a generar</button>'+
+          '<button class="btn sec sm" id="rep-undo" hidden>Deshacer IA</button>'+
+          '<button class="btn sm ia" id="rep-ia">✨ Redactar con IA</button>'+
+          '<button class="btn sec sm" id="rep-print">Imprimir / PDF</button>'+
+          '<button class="btn sec sm" id="rep-dl">Descargar .txt</button>'+
+          '<button class="btn sm" id="rep-copy">Copiar reporte</button>'+
+        '</div></div>'+
+        '<div class="rep-aviso" id="rep-aviso" hidden></div>'+
+        '<textarea id="rep-txt" spellcheck="true"></textarea>'+
+      '</div>'+
+    '</div>';
+  const txt = $('#rep-txt');
+  const contar = () => { const e = $('#cnt5'); if (e) e.textContent = '(' + R.sel.length + ' de 5)'; };
+  const generar = forzar => {
+    if (R.editado && !forzar) { const a = $('#rep-aviso'); a.hidden = false; a.textContent = 'Editaste el texto (o lo redactó la IA). Los ajustes no lo reemplazarán hasta que pulses «Volver a generar».'; $('#rep-reg').hidden = false; return; }
+    R.editado = false; R.antesIA = null; txt.value = R.texto = textoSemanal(); $('#rep-aviso').hidden = true; $('#rep-reg').hidden = true; $('#rep-undo').hidden = true;
+  };
+  $('#rep-cuerpo').querySelectorAll('.rep-op input').forEach(cb => cb.onchange = () => {
+    if (cb.checked) { if (R.sel.length >= 5) { cb.checked = false; toast('Elige máximo 5 problemas'); return; } R.sel.push(cb.value); }
+    else R.sel = R.sel.filter(x => x !== cb.value);
+    contar(); generar();
+  });
+  $('#r-plan').oninput = e => { R.planExtra = e.target.value; generar(); };
+  txt.oninput = () => { R.editado = true; R.texto = txt.value; $('#rep-reg').hidden = false; };
+  $('#rep-reg').onclick = () => generar(true);
+  prepararSalida(txt, () => 'Reporte semanal ' + (R.area || 'CC1-CC4') + ' ' + R.semana + '.txt');
+  prepararIA(R, 'semanal', areas);
+  contar();
+  if (R.editado && R.texto) { txt.value = R.texto; $('#rep-reg').hidden = false; } else generar(true);
+}
+function porDefecto5(items){
+  const orden = items.slice().sort((a,b) => b.score - a.score || (a.f < b.f ? 1 : -1));
+  const el = [];
+  orden.forEach(it => { if (el.length < 5 && el.filter(x => x.c === it.c).length < 2) el.push(it); }); // máx. 2 por consultor…
+  orden.forEach(it => { if (el.length < 5 && !el.includes(it)) el.push(it); });                     // …salvo que no haya más
+  return el.map(it => it.id);
+}
+function prepararSalida(txt, nombre){
+  $('#rep-copy').onclick = async () => {
+    try { await navigator.clipboard.writeText(txt.value); } catch(e){ txt.select(); document.execCommand('copy'); }
+    toast('Reporte copiado');
+  };
+  $('#rep-dl').onclick = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([txt.value], { type:'text/plain;charset=utf-8' }));
+    a.download = nombre();
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  };
+  $('#rep-print').onclick = () => { $('#print-area').textContent = txt.value; window.print(); };
 }
 
 /* ======================== Hojas de captura ======================== */
