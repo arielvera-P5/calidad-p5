@@ -1415,98 +1415,171 @@ function heDetalle(nombre){
 }
 
 /* ---------- Sugerencia semanal ---------- */
+// Educaciones continuas, Role Plays y UNIMETAB rotan una por semana (EC → RP → UNIMETAB → EC…).
+// La rotación avanza con cada correo enviado. Dentro de cada una se sigue el orden de la grid.
+const HE_ROT = ['EC', 'RP', 'UNIMETAB'];
+const HE_ROT_INFO = { EC: { nom: 'Educación continua', u: 'pasos', t: 'ec' }, RP: { nom: 'Role Play', u: 'secciones', t: 'rp' }, UNIMETAB: { nom: 'UNIMETAB', u: 'lecciones', t: 'uni' } };
+function heItemAux(tipo, a){
+  const i = HE_ROT_INFO[tipo];
+  const prog = a.cursando && heN(a.raw) !== '1/2' ? 'continuar; lleva ' + a.num + (a.total ? ' de ' + a.total : '') + ' ' + i.u
+             : a.cursando ? 'continuar' : 'comenzar' + (a.total ? ' (' + a.total + ' ' + i.u + ')' : '');
+  return { tipo, curso: a.curso, texto: i.nom + ': «' + a.curso + '» — ' + prog + '.' };
+}
+function hePendientes(nombre, tipo){
+  const d = heEstado().data, x = heCmc(nombre), i = HE_ROT_INFO[tipo];
+  const p = x[i.t === 'uni' ? 'uni' : i.t];
+  return p ? heAvanceAux(d[i.t], p).filter(a => !a.hecho) : [];
+}
+function heRotacion(nombre, disponibles){
+  const d = heEstado().data, u = (d.envios || {})[heN(nombre)];
+  if (!disponibles.length) return null;
+  let ini = 0;
+  if (u) {
+    const k = HE_ROT.indexOf(u.tipo);
+    if (u.semana === d.semanaHoy.ini && disponibles.includes(u.tipo)) return u.tipo;   // ya se envió esta semana
+    ini = k + 1;
+  }
+  for (let j = 0; j < HE_ROT.length; j++) { const t = HE_ROT[(ini + j) % HE_ROT.length]; if (disponibles.includes(t)) return t; }
+  return null;
+}
+// ¿Puede empezar el nivel de este tipo de curso? (nivel anterior Aprobado o autorizado)
+function heCandado(nombre, tipo){
+  const d = heEstado().data, x = heCmc(nombre), pm = x.pm;
+  const col = d.main.cols.find(c => c.tipo === tipo);
+  if (!col || !pm) return null;
+  const k = d.main.niveles.findIndex(n => n.nombre === col.nivel);
+  if (k <= 0) return null;
+  const prev = d.main.niveles[k - 1];
+  if (heN(pm.vals[prev.idx]) === 'aprobado') return null;
+  if (((d.autorizados || {})[heN(nombre)] || []).includes(heN(col.nivel))) return null;
+  const falta = [];
+  d.main.cols.forEach((c, j) => {
+    if (c.nivel !== prev.nombre || /^estatus/.test(heN(c.label))) return;
+    const v = heN(pm.vals[j]), m = String(c.label).match(/\((\d+)\s*-\s*(\d+)\)/);
+    const ok = m ? Number(pm.vals[j]) >= Number(m[2]) : /^(si|culminado|aprobado)$/.test(v);
+    if (!ok) falta.push(String(c.curso || '').trim() + ' · ' + c.label.replace(/\s*\(.*?\)\s*/g, ' ').trim() + ' (' + (pm.vals[j] || 'vacío') + ')');
+  });
+  return { nivel: col.nivel, anterior: prev.nombre, falta };
+}
 function heSugerir(nombre){
-  const d = heEstado().data, x = heCmc(nombre), pm = x.pm, out = [];
-  if (!pm) return ['No aparece en la tabla de progreso.'];
+  const d = heEstado().data, x = heCmc(nombre), pm = x.pm;
+  if (!pm) return { tipo: 'NA', texto: 'No aparece en la tabla de progreso.' };
   const col = (tipo, rx, curso) => heColsTipo(tipo).find(c => rx.test(heN(c.label)) && (!curso || curso.test(heN(c.curso))));
   const val = c => c ? heN(heValMain(pm, c)) : '';
   const libro = (tipo, nom) => {
     const e = col(tipo, /^estado/), ex = col(tipo, /^examen/), co = col(tipo, /^corregido/);
-    if (e && val(e) !== 'culminado') return nom + ': ' + (val(e) === 'cursando' ? 'continuar' : 'comenzar') + ' el estudio del libro.';
-    if (ex && val(ex) !== 'si') return nom + ': presentar el examen.';
-    if (co && val(co) !== 'si') return nom + ': corrección del examen.';
+    if (e && val(e) !== 'culminado') return { tipo, curso: nom, texto: nom + ': ' + (val(e) === 'cursando' ? 'continuar' : 'comenzar') + ' el estudio del libro.' };
+    if (ex && val(ex) !== 'si') return { tipo, curso: nom, texto: nom + ': presentar el examen.' };
+    if (co && val(co) !== 'si') return { tipo, curso: nom, texto: nom + ': corrección del examen.' };
     return null;
   };
-  let s = libro('EPDM', 'EPDM'); if (s) return [s];
+  const espera = (g) => ({ tipo: 'ESPERA', nivel: g.nivel, texto: 'En espera para pasar a ' + g.nivel + ': falta completar ' + (g.falta.length ? g.falta.join(', ') : g.anterior) + '. Puede avanzar si cumple los requisitos o con su autorización.' });
+  let s = libro('EPDM', 'EPDM'); if (s) return s;
   const gc = col('GUIA', /^comenzo/), gf = col('GUIA', /^culmino/);
-  if (gc && val(gc) !== 'si') return ['Guía de CMC: comenzar el estudio.'];
-  if (gf && val(gf) !== 'si') return ['Guía de CMC: culminar el estudio.'];
-  const sig = (t, p) => { if (!p) return null; const av = heAvanceAux(t, p); return av.find(a => a.cursando) || av.find(a => !a.hecho) || null; };
-  const ec = sig(d.ec, x.ec), un = sig(d.uni, x.uni), rp = sig(d.rp, x.rp);
-  const txt = (a, pref, u) => pref + ': ' + (a.cursando ? 'continuar' : 'comenzar') + ' «' + a.curso + '»' + (a.cursando && heN(a.raw) !== '1/2' ? ' (va ' + a.num + (a.total ? '/' + a.total : '') + (u ? ' ' + u : '') + ')' : (a.total && u ? ' (' + a.total + ' ' + u + ')' : '')) + '.';
-  if (ec || un) {
-    let elige;
-    if (ec && un) {
-      const ult = d.ultimo[heN(nombre)];
-      if (ult && ult.tipo === 'UNIMETAB') elige = 'EC';
-      else if (ult && ult.tipo === 'EC') elige = 'UNI';
-      else elige = ec.cursando || !un.cursando ? 'EC' : 'UNI';
-    } else elige = ec ? 'EC' : 'UNI';
-    out.push(elige === 'EC' ? txt(ec, 'Educación continua', 'pasos') : txt(un, 'UNIMETAB', 'lecciones'));
-    if (ec && un) out.push('Alterna con ' + (elige === 'EC' ? 'UNIMETAB «' + un.curso + '»' : 'la educación continua «' + ec.curso + '»') + ' en la siguiente sesión.');
+  if (gc && val(gc) !== 'si') return { tipo: 'GUIA', curso: 'Guía de CMC', texto: 'Guía de CMC: comenzar el estudio.' };
+  if (gf && val(gf) !== 'si') return { tipo: 'GUIA', curso: 'Guía de CMC', texto: 'Guía de CMC: culminar el estudio.' };
+  // Rotación EC → RP → UNIMETAB (excepción autorizada: no exige cambio de nivel entre ellas)
+  const disp = HE_ROT.filter(t => hePendientes(nombre, t).length);
+  const t = heRotacion(nombre, disp);
+  if (t) return heItemAux(t, hePendientes(nombre, t)[0]);
+  // Después, en el orden de la grid y respetando el nivel
+  for (const [tipo, nom] of [['MUP', 'MUP'], ['DSP', 'DSP']]) {
+    const g = heCandado(nombre, tipo); s = libro(tipo, nom);
+    if (s) return g ? espera(g) : s;
   }
-  if (rp) out.push(txt(rp, 'Role Play', 'secciones'));
-  if (out.length) return out;
-  s = libro('MUP', 'MUP'); if (s) return [s];
-  s = libro('DSP', 'DSP'); if (s) return [s];
   const h1 = col('HUBBARD', /^estado/, /hubbard 1/), h2 = col('HUBBARD', /^estado/, /hubbard 2/);
-  if (h1 && val(h1) !== 'culminado') return ['Hubbard 1: ' + (val(h1) === 'cursando' ? 'continuar' : 'comenzar') + ' el curso.'];
-  if (h2 && val(h2) !== 'culminado') return ['Hubbard 2: ' + (val(h2) === 'cursando' ? 'continuar' : 'comenzar') + ' el curso.'];
-  return ['Completó el plan de estudio.'];
+  for (const [c, nom] of [[h1, 'Hubbard 1'], [h2, 'Hubbard 2']]) {
+    if (c && val(c) !== 'culminado') { const g = heCandado(nombre, 'HUBBARD'); return g ? espera(g) : { tipo: 'HUBBARD', curso: nom, texto: nom + ': ' + (val(c) === 'cursando' ? 'continuar' : 'comenzar') + ' el curso.' }; }
+  }
+  return { tipo: 'FIN', texto: 'Completó el plan de estudio.' };
 }
 function heSug(){
-  const d = heEstado().data;
-  let html = '<p class="sub" style="margin-top:0">Orden: EPDM → Guía CMC → Educaciones continuas y UNIMETAB (alternando) + Role Plays → MUP → DSP → Hubbard 1 → Hubbard 2.</p>'+
-    '<div class="tabla-wrap" style="max-height:none"><table><thead><tr><th>Nombre</th><th>Día y hora</th><th>Le toca esta semana</th><th></th></tr></thead><tbody>';
+  const d = heEstado().data, admin = S.user.rol === 'admin';
+  let html = '<p class="sub" style="margin-top:0">Una sugerencia por semana. EPDM → Guía CMC → rotación semanal Educación continua → Role Play → UNIMETAB (cada una en el orden de la grid; la rotación avanza al enviar el correo) → MUP → DSP → Hubbard 1 → Hubbard 2. Para pasar de nivel se requiere el nivel anterior Aprobado o su autorización.</p>'+
+    '<div class="tabla-wrap" style="max-height:none"><table><thead><tr><th>Nombre</th><th>Día y hora</th><th>Le toca esta semana</th><th>Último correo</th><th></th></tr></thead><tbody>';
   let g = '';
   d.main.personas.forEach(p => {
-    if (p.grupo !== g) { g = p.grupo; html += '<tr class="he-gr"><td colspan="4">'+esc(g === 'STAFF' ? 'Staff' : g)+'</td></tr>'; }
-    const x = heCmc(p.nombre), susp = x.sem && heSusp(x.sem.O);
+    if (p.grupo !== g) { g = p.grupo; html += '<tr class="he-gr"><td colspan="5">'+esc(g === 'STAFF' ? 'Staff' : g)+'</td></tr>'; }
+    const x = heCmc(p.nombre), susp = x.sem && heSusp(x.sem.O), sg = heSugerir(p.nombre), u = (d.envios || {})[heN(p.nombre)];
     html += '<tr class="'+(susp?'he-susp':'')+'"><td><b>'+esc(p.nombre)+'</b></td><td class="sub">'+esc(heHorario(x.cal))+'</td>'+
-      '<td>'+(susp ? '<span class="badge b-bad">Suspendida</span> '+esc(String(x.sem.O).replace(/^\s*suspendida:\s*/i,'')) : '<ul class="he-ul">'+heSugerir(p.nombre).map(s => '<li>'+esc(s)+'</li>').join('')+'</ul>')+'</td>'+
-      '<td class="he-acc">'+(!susp && S.user.rol === 'admin' && x.cal ? '<button class="btn sec sm" data-m="'+esc(p.nombre)+'" title="Enviar recordatorio por correo">✉ Correo</button> ' : '')+(x.sem && !susp ? '<button class="btn sec sm" data-s="'+esc(p.nombre)+'">Suspender</button>' : '')+'</td></tr>';
+      '<td>'+(susp ? '<span class="badge b-bad">Suspendida</span> '+esc(String(x.sem.O).replace(/^\s*suspendida:\s*/i,'')) : (sg.tipo === 'ESPERA' ? '<span class="badge b-warn">En espera</span> ' : '')+esc(sg.texto))+'</td>'+
+      '<td class="sub">'+(u ? esc(HE_ROT_INFO[u.tipo].nom)+' · '+fmt(u.fecha) : '—')+'</td>'+
+      '<td class="he-acc">'+
+        (admin && sg.tipo === 'ESPERA' ? '<button class="btn sec sm" data-a="'+esc(p.nombre)+'" data-nv="'+esc(sg.nivel)+'">Autorizar avance</button> ' : '')+
+        (!susp && admin && x.cal ? '<button class="btn sec sm" data-m="'+esc(p.nombre)+'" title="Enviar recordatorio por correo">✉ Correo</button> ' : '')+
+        (x.sem && !susp ? '<button class="btn sec sm" data-s="'+esc(p.nombre)+'">Suspender</button>' : '')+'</td></tr>';
   });
   $('#he-cuerpo').innerHTML = html + '</tbody></table></div>';
   $('#he-cuerpo').querySelectorAll('[data-s]').forEach(b => b.onclick = () => heSuspender(b.dataset.s));
   $('#he-cuerpo').querySelectorAll('[data-m]').forEach(b => b.onclick = () => heCorreo(b.dataset.m));
+  $('#he-cuerpo').querySelectorAll('[data-a]').forEach(b => b.onclick = () => heAutorizar(b.dataset.a, b.dataset.nv));
+}
+function heAutorizar(nombre, nivel){
+  modal('Autorizar avance · '+nombre,
+    '<p>¿Autoriza que <b>'+esc(nombre)+'</b> comience <b>'+esc(nivel)+'</b> aunque el nivel anterior aún no esté Aprobado en la grid?</p>'+
+    '<div class="campo"><label>Motivo (opcional)</label><input type="text" id="au-m"></div><p class="sub">Queda registrado en la hoja «Autorizaciones de nivel».</p>',
+    '<button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" id="he-ok">Autorizar</button>', true);
+  $('#he-ok').onclick = () => heAccion('authorizeLevel', [{ nombre, nivel, motivo: $('#au-m').value }], 'Avance autorizado', $('#he-ok'));
 }
 
-/* ---------- Correo de recordatorio (prueba manual por consultor) ---------- */
-// Correo para pruebas: se recuerda en este navegador
-function heMiCorreo(v){ try { if (v) localStorage.setItem('he_correo_prueba', v); return localStorage.getItem('he_correo_prueba') || ''; } catch(e){ return v || ''; } }
+/* ---------- Correo de recordatorio ---------- */
+// Opciones de estudio para el correo: la sugerida, cualquier curso pendiente de EC / RP / UNIMETAB (orden de la grid) u «Otro»
+function heOpcionesEstudio(nombre){
+  const sg = heSugerir(nombre), ops = [];
+  if (!['ESPERA', 'FIN', 'NA'].includes(sg.tipo)) ops.push({ v: 'sug', grupo: 'Sugerido', tipo: sg.tipo, curso: sg.curso, texto: sg.texto });
+  HE_ROT.forEach(t => hePendientes(nombre, t).forEach((a, k) => ops.push({ v: t + '|' + k, grupo: HE_ROT_INFO[t].nom, tipo: t, curso: a.curso, texto: heItemAux(t, a).texto })));
+  ops.push({ v: 'otro', grupo: 'Otro', tipo: 'OTRO', curso: '', texto: '' });
+  return { ops, sg };
+}
 async function heCorreo(nombre){
-  const sugerencias = heSugerir(nombre);
+  const { ops, sg } = heOpcionesEstudio(nombre);
   modal('Correo de hora de estudio · '+nombre, '<div class="cargando" style="padding:30px 0">Preparando vista previa…</div>', '', false);
   let pv;
-  try { pv = await api('emailPreview', { nombre, sugerencias }); } catch(e){ errModal(e.message); return; }
+  try { pv = await api('emailPreview', { nombre, sugerencias: [] }); } catch(e){ errModal(e.message); return; }
+  let grupoAct = '', opts = '';
+  ops.forEach(o => {
+    if (o.grupo !== grupoAct) { if (grupoAct) opts += '</optgroup>'; grupoAct = o.grupo; opts += '<optgroup label="'+esc(o.grupo)+'">'; }
+    opts += '<option value="'+esc(o.v)+'">'+esc(o.v === 'otro' ? 'Otro (escribir la indicación)' : o.texto)+'</option>';
+  });
+  opts += '</optgroup>';
   $('#modal-b').innerHTML =
+    (sg.tipo === 'ESPERA' ? '<div class="rep-aviso">'+esc(sg.texto)+'</div>' : '')+
     '<div class="grid-form">'+
       '<div class="campo"><label>Para (consultor)</label><input type="email" id="ml-para" value="'+esc(pv.para)+'" placeholder="correo@naturalslim.com"></div>'+
       '<div class="campo"><label>CC (supervisor'+(pv.supervisor ? ': '+esc(pv.supervisor) : '')+')</label><input type="email" id="ml-cc" value="'+esc(pv.cc)+'" placeholder="'+(pv.supervisor ? 'correo del supervisor' : 'Sin supervisor en el calendario')+'"'+(pv.supervisor?'':' disabled')+'></div>'+
+      '<div class="campo ancho"><label>Lo que estudiará</label><select id="ml-est">'+opts+'</select></div>'+
+      '<div class="campo ancho" id="ml-otro-c" hidden><label>Indicación de estudio <span class="req">*</span></label><textarea id="ml-otro" placeholder="Ej. Repasar el módulo de manejo de objeciones y preparar 3 preguntas para el supervisor"></textarea></div>'+
     '</div>'+
-    '<div class="campo"><label>Enviar la prueba a (tu correo)</label><input type="email" id="ml-yo" value="'+esc(heMiCorreo())+'" placeholder="tu.correo@naturalslim.com"></div>'+
-    '<p class="sub" style="margin:0 0 10px">Asunto: <b>'+esc(pv.asunto)+'</b><br>Sale desde la cuenta dueña del Apps Script · quedan '+pv.cuota+' correos hoy. Los correos del consultor y supervisor se guardan en la hoja «Correos Hora de Estudio».</p>'+
-    '<div class="ml-prev">'+pv.html+'</div>';
-  $('#modal-f').innerHTML = '<button class="btn sec" onclick="cerrarModal()">Cancelar</button>'+
-    '<button class="btn sec" id="ml-prueba">Enviar prueba solo a mí</button>'+
-    '<button class="btn" id="ml-real">Enviar al consultor</button>';
-  const enviar = async (prueba, b) => {
-    const para = $('#ml-para').value.trim(), cc = $('#ml-cc').value.trim();
-    const ok = s => /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(s);
-    const yo = $('#ml-yo').value.trim();
-    if (prueba && !ok(yo)) return errModal('Escribe tu correo en «Enviar la prueba a».');
-    if (prueba) heMiCorreo(yo);
-    if (!prueba && !ok(para)) return errModal('Escribe un correo válido para el consultor.');
-    if (cc && !ok(cc)) return errModal('El correo del supervisor no es válido.');
-    if (!prueba && !confirm('¿Enviar el correo a '+para+(cc?' con copia a '+cc:'')+'?')) return;
-    b.disabled = true; const t = b.textContent; b.textContent = 'Enviando…';
-    try {
-      const r = await api('sendEmail', { nombre, para, cc, sugerencias, prueba, pruebaA: yo });
-      cerrarModal(); toast((prueba ? 'Prueba enviada a ' : 'Correo enviado a ') + r.enviadoA + (r.cc ? ' (CC '+r.cc+')' : ''));
-    } catch(e){ errModal(e.message); b.disabled = false; b.textContent = t; }
+    '<p class="sub" style="margin:0 0 10px">Asunto: <b>'+esc(pv.asunto)+'</b> · quedan '+pv.cuota+' correos hoy. Los correos del consultor y supervisor se guardan en la hoja «Correos Hora de Estudio».</p>'+
+    '<div class="ml-prev" id="ml-prev"></div>';
+  const sel = $('#ml-est');
+  sel.value = ops[0].v;
+  const elegido = () => {
+    const o = ops.find(x => x.v === sel.value);
+    if (o.v === 'otro') { const t = $('#ml-otro').value.trim(); return { tipo: 'OTRO', curso: t, texto: t }; }
+    return { tipo: o.tipo, curso: o.curso, texto: o.texto };
   };
-  $('#ml-prueba').onclick = () => enviar(true, $('#ml-prueba'));
-  $('#ml-real').onclick = () => enviar(false, $('#ml-real'));
+  const pintar = () => {
+    $('#ml-otro-c').hidden = sel.value !== 'otro';
+    const e = elegido();
+    $('#ml-prev').innerHTML = pv.html.replace('__ESTUDIO__', esc(e.texto || '(escriba la indicación de estudio)'));
+  };
+  sel.onchange = pintar; $('#ml-otro').oninput = pintar; pintar();
+  $('#modal-f').innerHTML = '<button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" id="ml-real">Enviar al consultor</button>';
+  $('#ml-real').onclick = async () => {
+    const b = $('#ml-real'), para = $('#ml-para').value.trim(), cc = $('#ml-cc').value.trim(), e = elegido();
+    const ok = s => /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(s);
+    if (!ok(para)) return errModal('Escriba un correo válido para el consultor.');
+    if (cc && !ok(cc)) return errModal('El correo del supervisor no es válido.');
+    if (!e.texto) return errModal('Escriba la indicación de estudio.');
+    if (!confirm('¿Enviar el correo a '+para+(cc?' con copia a '+cc:'')+'?')) return;
+    b.disabled = true; b.textContent = 'Enviando…';
+    try {
+      const r = await api('sendEmail', { nombre, para, cc, sugerencias: [e.texto], estudio: { tipo: e.tipo, curso: e.curso } });
+      cerrarModal(); toast('Correo enviado a ' + r.enviadoA + (r.cc ? ' (CC '+r.cc+')' : ''));
+      heCargar(true);   // actualiza «Último correo» y la rotación
+    } catch(err){ errModal(err.message); b.disabled = false; b.textContent = 'Enviar al consultor'; }
+  };
 }
 
 /* ======================== Hojas de captura ======================== */
