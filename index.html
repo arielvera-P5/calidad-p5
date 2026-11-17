@@ -1472,6 +1472,8 @@ function heSug(){
 }
 
 /* ---------- Correo de recordatorio (prueba manual por consultor) ---------- */
+// Correo para pruebas: se recuerda en este navegador
+function heMiCorreo(v){ try { if (v) localStorage.setItem('he_correo_prueba', v); return localStorage.getItem('he_correo_prueba') || ''; } catch(e){ return v || ''; } }
 async function heCorreo(nombre){
   const sugerencias = heSugerir(nombre);
   modal('Correo de hora de estudio · '+nombre, '<div class="cargando" style="padding:30px 0">Preparando vista previa…</div>', '', false);
@@ -1482,7 +1484,8 @@ async function heCorreo(nombre){
       '<div class="campo"><label>Para (consultor)</label><input type="email" id="ml-para" value="'+esc(pv.para)+'" placeholder="correo@naturalslim.com"></div>'+
       '<div class="campo"><label>CC (supervisor'+(pv.supervisor ? ': '+esc(pv.supervisor) : '')+')</label><input type="email" id="ml-cc" value="'+esc(pv.cc)+'" placeholder="'+(pv.supervisor ? 'correo del supervisor' : 'Sin supervisor en el calendario')+'"'+(pv.supervisor?'':' disabled')+'></div>'+
     '</div>'+
-    '<p class="sub" style="margin:0 0 10px">Asunto: <b>'+esc(pv.asunto)+'</b><br>Se envía desde <b>'+esc(pv.remitente)+'</b> · quedan '+pv.cuota+' correos hoy. Los correos que escribas aquí se guardan en la hoja «Correos Hora de Estudio».</p>'+
+    '<div class="campo"><label>Enviar la prueba a (tu correo)</label><input type="email" id="ml-yo" value="'+esc(heMiCorreo())+'" placeholder="tu.correo@naturalslim.com"></div>'+
+    '<p class="sub" style="margin:0 0 10px">Asunto: <b>'+esc(pv.asunto)+'</b><br>Sale desde la cuenta dueña del Apps Script · quedan '+pv.cuota+' correos hoy. Los correos del consultor y supervisor se guardan en la hoja «Correos Hora de Estudio».</p>'+
     '<div class="ml-prev">'+pv.html+'</div>';
   $('#modal-f').innerHTML = '<button class="btn sec" onclick="cerrarModal()">Cancelar</button>'+
     '<button class="btn sec" id="ml-prueba">Enviar prueba solo a mí</button>'+
@@ -1490,12 +1493,15 @@ async function heCorreo(nombre){
   const enviar = async (prueba, b) => {
     const para = $('#ml-para').value.trim(), cc = $('#ml-cc').value.trim();
     const ok = s => /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(s);
+    const yo = $('#ml-yo').value.trim();
+    if (prueba && !ok(yo)) return errModal('Escribe tu correo en «Enviar la prueba a».');
+    if (prueba) heMiCorreo(yo);
     if (!prueba && !ok(para)) return errModal('Escribe un correo válido para el consultor.');
     if (cc && !ok(cc)) return errModal('El correo del supervisor no es válido.');
     if (!prueba && !confirm('¿Enviar el correo a '+para+(cc?' con copia a '+cc:'')+'?')) return;
     b.disabled = true; const t = b.textContent; b.textContent = 'Enviando…';
     try {
-      const r = await api('sendEmail', { nombre, para, cc, sugerencias, prueba });
+      const r = await api('sendEmail', { nombre, para, cc, sugerencias, prueba, pruebaA: yo });
       cerrarModal(); toast((prueba ? 'Prueba enviada a ' : 'Correo enviado a ') + r.enviadoA + (r.cc ? ' (CC '+r.cc+')' : ''));
     } catch(e){ errModal(e.message); b.disabled = false; b.textContent = t; }
   };
