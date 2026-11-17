@@ -27,7 +27,7 @@
 
   /* Campos */
   label{display:block;font-size:12px;font-weight:600;color:var(--tx2);margin-bottom:5px}
-  .inp,select,textarea,input[type=text],input[type=password],input[type=date],input[type=number],input[type=search]{
+  .inp,select,textarea,input[type=text],input[type=password],input[type=date],input[type=number],input[type=search],input[type=email],input[type=tel]{
     width:100%;padding:9px 11px;border:1px solid var(--bd);border-radius:8px;background:#fff;outline:none;transition:border .15s,box-shadow .15s}
   input:focus,select:focus,textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(14,138,126,.15)}
   textarea{min-height:84px;resize:vertical}
@@ -111,6 +111,29 @@
 
   #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 18px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:60}
   #toast.on{opacity:1}
+
+  /* Hora de Estudio */
+  .he-sub{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px;border-bottom:1px solid var(--bd)}
+  .he-sub button{background:none;border:0;padding:9px 12px;cursor:pointer;color:var(--tx2);font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .he-sub button.on{color:var(--navy);border-bottom-color:var(--acc)}
+  #he-sync{font-size:12px} #he-sync.he-err{color:var(--bad)}
+  tr.he-gr td{background:#eef1f7;font-weight:700;color:var(--navy);font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding:7px 12px}
+  tr.he-susp td{background:#fdf3f2}
+  .he-acc{white-space:nowrap;text-align:right}
+  .he-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  table.he-sem input{padding:6px 8px;min-width:70px}
+  table.he-sem td:nth-child(5) input{min-width:220px}
+  .he-form{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:16px;max-width:860px}
+  .he-suma{background:#f6f8fb;border:1px solid var(--bd);border-radius:8px;padding:12px 14px 2px;margin:8px 0 14px}
+  .he-suma .grid-form{margin-top:8px}
+  .he-barra{height:7px;border-radius:4px;background:#e8ecf3;overflow:hidden;min-width:120px;max-width:220px}
+  .he-barra i{display:block;height:100%;background:var(--acc)}
+  .he-nivel{border:1px solid var(--bd);border-radius:8px;padding:8px 12px;margin-bottom:10px}
+  .he-nivel h4{margin:2px 0 6px;font-size:13px;color:var(--navy)}
+  .he-li{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid #f0f2f6;font-size:13px}
+  .he-li:last-child{border:0}
+  .he-ul{margin:0;padding-left:18px} .he-ul li{margin:2px 0}
+  .ml-prev{background:#f6f8fb;border:1px solid var(--bd);border-radius:10px;padding:14px;overflow:auto}
 
   /* Reporte escrito */
   .rep-ctrl{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px 0;margin-bottom:14px}
@@ -332,7 +355,7 @@ $('#b-suc').onclick = () => { storeSuc.set(null); mostrarSucursal(); };
 $('#suc-salir').onclick = () => salir();
 function salir(silencioso){
   if (S.token && !silencioso) run('logout', S.token).catch(()=>{});
-  S.token = null; S.data = {}; S.grad = null; S.suc = null; S.rep = null; S.repS = null; store.set(null); storeSuc.set(null); cerrarModal(); mostrarLogin();
+  S.token = null; S.data = {}; S.grad = null; S.suc = null; S.rep = null; S.repS = null; if (S.he && S.he.timer) clearInterval(S.he.timer); S.he = null; store.set(null); storeSuc.set(null); cerrarModal(); mostrarLogin();
 }
 $('#b-salir').onclick = () => salir();
 $('#b-pass').onclick = () => {
@@ -352,7 +375,8 @@ $('#b-pass').onclick = () => {
 /* ======================== Navegación ======================== */
 function tabs(){
   const t = [{k:'resumen',t:'Resumen'}];
-  Object.keys(S.meta).filter(k => S.meta[k].suc === S.suc).forEach(k => t.push({k, t:S.meta[k].titulo}));
+  // En Piloto 5, "Hora de Estudio" reemplaza a la pestaña "Horas de Estudio"
+  Object.keys(S.meta).filter(k => S.meta[k].suc === S.suc).forEach(k => t.push(k === 'horas' ? {k:'hora', t:'Hora de Estudio'} : {k, t:S.meta[k].titulo}));
   if (S.suc === 'p5') t.push({k:'graduados', t:'Graduados (grid)'});
   if (S.suc === 'cc') t.push({k:'reporte', t:'Reporte'});
   if (S.user.rol === 'admin'){ t.push({k:'usuarios', t:'Usuarios'}); t.push({k:'bitacora', t:'Bitácora'}); }
@@ -371,6 +395,7 @@ function ir(k){
   else if (k === 'usuarios') vistaUsuarios();
   else if (k === 'bitacora') vistaBitacora();
   else if (k === 'reporte') vistaReporte();
+  else if (k === 'hora') vistaHora();
 }
 
 /* ======================== Resumen ======================== */
@@ -1016,6 +1041,466 @@ function prepararSalida(txt, nombre){
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
   };
   $('#rep-print').onclick = () => { $('#print-area').textContent = txt.value; window.print(); };
+}
+
+/* ======================== Hora de Estudio (Piloto 5) ======================== */
+const HE_DIAS = ['Viernes','Sábado','Domingo','Lunes','Martes','Miércoles','Jueves'];
+const HE_SUBS = [['cal','Calendario'],['sem','Registro semanal'],['reg','Registrar progreso'],['prog','Progreso'],['sug','Sugerencia semanal']];
+const HE_TIPOS = [['EPDM','EPDM'],['GUIA','Guía CMC'],['EC','Educaciones continuas'],['UNIMETAB','UNIMETAB'],['RP','Role Plays'],['GRADUADOS','Graduados'],['MUP','MUP'],['DSP','DSP'],['HUBBARD','Hubbard'],['OTRO','Otro']];
+const heN = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+const heSusp = o => /^\s*suspendida/i.test(String(o||''));
+
+function heEstado(){ return S.he || (S.he = { data:null, sub:'cal', ver:null, verData:null, sync:null, timer:null, dirty:{}, hash:'' }); }
+
+async function vistaHora(){
+  const H = heEstado();
+  if (!H.timer) H.timer = setInterval(heSondeo, 45000);
+  if (!H.data) { cargando(); await heCargar(); if (S.tab !== 'hora') return; }
+  pintarHora();
+}
+async function heCargar(silencioso){
+  const H = heEstado();
+  try {
+    const d = await api('getAll');
+    heAplicar(d, silencioso);
+  } catch(e){ if (!silencioso) errVista(e); else heMarcarSync('Error al sincronizar: ' + e.message); }
+}
+function heAplicar(d, silencioso){
+  const H = heEstado(), hash = JSON.stringify(d);
+  const cambio = hash !== H.hash;
+  H.data = d; H.hash = hash; H.sync = new Date();
+  if (d.semanaCreada) toast('Se creó la ' + d.semanaCreada);
+  if (S.tab !== 'hora') return;
+  if (!silencioso || (cambio && !heEditando())) pintarHora(); else heMarcarSync();
+}
+function heEditando(){
+  const H = heEstado();
+  if (!$('#modal').hidden) return true;
+  if (Object.keys(H.dirty).length) return true;
+  const a = document.activeElement;
+  return a && $('#vista').contains(a) && /INPUT|SELECT|TEXTAREA/.test(a.tagName);
+}
+function heSondeo(){
+  if (S.tab !== 'hora' || !S.token || document.visibilityState !== 'visible') return;
+  heCargar(true);
+}
+function heMarcarSync(msg){
+  const e = $('#he-sync'); if (!e) return;
+  const H = heEstado();
+  e.textContent = msg || ('Sincronizado ' + (H.sync ? H.sync.toLocaleTimeString() : ''));
+  e.classList.toggle('he-err', !!msg);
+}
+// Llama a un endpoint que devuelve todo actualizado
+async function heAccion(fn, args, okMsg, btn){
+  if (btn) { btn.disabled = true; btn._t = btn.textContent; btn.textContent = 'Guardando…'; }
+  try {
+    const d = await api(fn, ...args);
+    heEstado().dirty = {};
+    cerrarModal(); heAplicar(d); if (okMsg) toast(okMsg);
+    return true;
+  } catch(e){
+    if (!$('#modal').hidden) errModal(e.message); else toast(e.message);
+    return false;
+  } finally { if (btn) { btn.disabled = false; btn.textContent = btn._t; } }
+}
+
+function pintarHora(){
+  const H = heEstado(), d = H.data;
+  const cab = '<div class="vh"><div><h1>Hora de Estudio</h1><p class="sub">'+esc(d.semana.titulo)+' · semana actual del Sheet</p></div>'+
+    '<div class="acciones"><span class="sub" id="he-sync"></span><button class="btn sec" id="he-sync-b">↻ Sincronizar</button></div></div>'+
+    '<div class="he-sub">'+HE_SUBS.map(s => '<button data-hs="'+s[0]+'" class="'+(H.sub===s[0]?'on':'')+'">'+s[1]+'</button>').join('')+'</div>'+
+    '<div id="he-cuerpo"></div>';
+  $('#vista').innerHTML = cab;
+  heMarcarSync();
+  $('#he-sync-b').onclick = async () => { const b = $('#he-sync-b'); b.disabled = true; H.dirty = {}; await heCargar(); b.disabled = false; toast('Datos sincronizados'); };
+  $('#vista').querySelectorAll('[data-hs]').forEach(b => b.onclick = () => { if (Object.keys(H.dirty).length && !confirm('Tienes cambios sin guardar en el registro semanal. ¿Salir sin guardar?')) return; H.dirty = {}; H.sub = b.dataset.hs; pintarHora(); });
+  ({ cal: heCal, sem: heSem, reg: heReg, prog: heProg, sug: heSug })[H.sub]();
+}
+
+/* ---------- Calendario ---------- */
+function heCal(){
+  const d = heEstado().data, admin = S.user.rol === 'admin';
+  let html = '<div class="acciones" style="margin-bottom:10px">'+(admin?'<button class="btn" id="he-add">+ Agregar CMC</button>':'')+'</div>'+
+    '<div class="tabla-wrap" style="max-height:none"><table><thead><tr><th>Cargo</th><th>Nombre</th>'+HE_DIAS.map(x => '<th>'+x+'</th>').join('')+'<th></th></tr></thead><tbody>';
+  d.calendario.forEach((f,i) => {
+    if (f.tipo === 'grupo') html += '<tr class="he-gr"><td colspan="10">'+esc(f.grupo)+'</td></tr>';
+    else if (f.tipo === 'vacia') html += '<tr class="he-gr"><td colspan="10">Staff</td></tr>';
+    else html += '<tr><td class="sub">'+esc(f.cargo)+'</td><td><b>'+esc(f.nombre)+'</b></td>'+f.dias.map(x => '<td>'+(x?'<span class="badge b-info">'+esc(x)+'</span>':'')+'</td>').join('')+
+      '<td class="he-acc"><button class="btn sec sm" data-ce="'+i+'">Editar</button>'+(admin?' <button class="btn sec sm" data-cx="'+i+'" title="Eliminar de todas las tablas">✕</button>':'')+'</td></tr>';
+  });
+  $('#he-cuerpo').innerHTML = html + '</tbody></table></div>';
+  $('#he-cuerpo').querySelectorAll('[data-ce]').forEach(b => b.onclick = () => heEditarHorario(d.calendario[+b.dataset.ce]));
+  $('#he-cuerpo').querySelectorAll('[data-cx]').forEach(b => b.onclick = () => heEliminar(d.calendario[+b.dataset.cx].nombre));
+  if ($('#he-add')) $('#he-add').onclick = heAgregar;
+}
+function heEditarHorario(p){
+  modal('Horario · '+p.nombre,
+    '<p class="sub" style="margin-top:0">Formato HH:MM - HH:MM (ej. 13:30 - 14:30). Deja vacíos los días sin estudio.</p><div class="grid-form">'+
+    HE_DIAS.map((x,i) => '<div class="campo"><label>'+x+'</label><input type="text" data-d="'+i+'" value="'+esc(p.dias[i]||'')+'" placeholder="HH:MM - HH:MM"></div>').join('')+'</div>',
+    '<button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" id="he-ok">Guardar</button>', true);
+  $('#he-ok').onclick = () => {
+    const dias = [...document.querySelectorAll('#modal-b [data-d]')].map(e => e.value.trim());
+    const mal = dias.find(x => x && !/^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}$/.test(x));
+    if (mal) return errModal('"'+mal+'" no tiene el formato HH:MM - HH:MM.');
+    heAccion('updateCalendar', [{ nombre:p.nombre, dias, prev:p.dias }], 'Horario guardado', $('#he-ok'));
+  };
+}
+function heAgregar(){
+  const d = heEstado().data;
+  const grupos = [...new Set(d.calendario.filter(f => f.tipo === 'grupo').map(f => f.grupo))];
+  modal('Agregar CMC',
+    '<div class="grid-form">'+
+      '<div class="campo ancho"><label>Nombre completo <span class="req">*</span></label><input type="text" id="na-n" placeholder="Igual que se escribirá en todas las tablas"></div>'+
+      '<div class="campo"><label>Grupo</label><select id="na-g">'+grupos.map(g => '<option>'+esc(g)+'</option>').join('')+'<option value="STAFF">Staff</option></select></div>'+
+      '<div class="campo"><label>Cargo</label><select id="na-c"><option>CMC</option><option>Supervisor</option></select></div>'+
+      '<div class="campo"><label>Día</label><select id="na-d"><option value="">Sin asignar</option>'+HE_DIAS.map((x,i) => '<option value="'+i+'">'+x+'</option>').join('')+'</select></div>'+
+      '<div class="campo"><label>Hora</label><input type="text" id="na-h" placeholder="HH:MM - HH:MM"></div>'+
+    '</div><p class="sub">Se agrega al final de su grupo en el calendario, la semana actual (K:O), la tabla de progreso (R:AT) y las tablas de Educaciones, UNIMETAB y Role Plays. El historial de semanas anteriores no se toca.</p>',
+    '<button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" id="he-ok">Agregar</button>');
+  $('#he-ok').onclick = () => {
+    const nombre = $('#na-n').value.replace(/\s+/g,' ').trim(), hora = $('#na-h').value.trim(), dia = $('#na-d').value;
+    if (!nombre) return errModal('Escribe el nombre.');
+    if (dia !== '' && !/^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}$/.test(hora)) return errModal('Escribe la hora como HH:MM - HH:MM.');
+    heAccion('addCMC', [{ nombre, grupo:$('#na-g').value, cargo:$('#na-c').value, dia, hora }], nombre+' agregado en todas las tablas', $('#he-ok'));
+  };
+}
+function heEliminar(nombre){
+  modal('Eliminar a '+nombre,
+    '<p>Se quitará de: calendario, semana actual, tabla de progreso, Educaciones continuas, UNIMETAB y Role Plays. <b>Su avance en esas tablas se pierde</b>; el historial de semanas anteriores se conserva.</p><div class="campo"><label>Escribe el nombre para confirmar</label><input type="text" id="he-conf"></div>',
+    '<button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" id="he-ok" style="background:var(--bad)">Eliminar</button>', true);
+  $('#he-ok').onclick = () => {
+    if (heN($('#he-conf').value) !== heN(nombre)) return errModal('El nombre no coincide.');
+    heAccion('removeCMC', [nombre], nombre+' eliminado', $('#he-ok'));
+  };
+}
+
+/* ---------- Registro semanal ---------- */
+async function heSem(){
+  const H = heEstado(), d = H.data;
+  const actual = !H.ver || H.ver === d.semana.fila;
+  let sem = d.semana;
+  if (!actual){
+    if (!H.verData || H.verData.fila !== H.ver){
+      $('#he-cuerpo').innerHTML = '<div class="cargando">Cargando semana…</div>';
+      try { H.verData = await api('getWeek', H.ver); } catch(e){ $('#he-cuerpo').innerHTML = '<div class="err">'+esc(e.message)+'</div>'; return; }
+      if (S.tab !== 'hora' || H.sub !== 'sem') return;
+    }
+    sem = H.verData;
+  }
+  const opts = d.semanas.slice().reverse().map(s => '<option value="'+s.fila+'"'+(s.fila===(H.ver||d.semana.fila)?' selected':'')+'>'+esc(s.titulo)+(s.fila===d.semana.fila?' (actual)':'')+'</option>').join('');
+  let html = '<div class="he-bar"><select id="he-ver" style="width:auto;max-width:100%">'+opts+'</select>'+
+    (actual ? '<button class="btn sec" id="he-nueva">+ Crear nueva semana</button>' : '<span class="badge">Solo lectura</span>')+'</div>'+
+    (actual && d.semana.finIso && d.hoy > d.semana.finIso ? '<div class="rep-aviso">Hoy ('+fmt(d.hoy)+') ya no está en esta semana. Al guardar cualquier registro se creará la «'+esc(d.semanaHoy.titulo)+'» y se guardará ahí.</div>' : '')+
+    '<div class="tabla-wrap" style="max-height:none"><table class="he-sem"><thead><tr><th>Staff</th><th>Corrección / capacitación (L)</th><th>Pasos de entrenamiento (M)</th><th>Total (N)</th><th>Observaciones</th>'+(actual?'<th></th>':'')+'</tr></thead><tbody>';
+  sem.filas.forEach((f,i) => {
+    if (f.tipo === 'grupo') { html += '<tr class="he-gr"><td colspan="6">'+esc(f.grupo)+'</td></tr>'; return; }
+    if (f.tipo === 'vacia') { html += '<tr class="he-gr"><td colspan="6">Staff</td></tr>'; return; }
+    const susp = heSusp(f.O);
+    if (!actual) { html += '<tr><td>'+esc(f.nombre)+'</td><td class="num">'+esc(f.L)+'</td><td class="num">'+esc(f.M)+'</td><td class="num"><b>'+esc(f.N)+'</b></td><td>'+(susp?'<span class="badge b-bad">Suspendida</span> ':'')+esc(f.O)+'</td></tr>'; return; }
+    html += '<tr data-i="'+i+'" class="'+(susp?'he-susp':'')+'"><td><b>'+esc(f.nombre)+'</b></td>'+
+      '<td><input type="number" min="0" step="1" data-k="L" value="'+esc(f.L)+'"></td>'+
+      '<td><input type="number" min="0" step="1" data-k="M" value="'+esc(f.M)+'"></td>'+
+      '<td class="num"><b data-n>'+esc(f.N)+'</b></td>'+
+      '<td><input type="text" data-k="O" value="'+esc(f.O)+'"></td>'+
+      '<td class="he-acc"><button class="btn sm" data-g hidden>Guardar</button> <button class="btn sec sm" data-s'+(susp?' disabled':'')+'>'+(susp?'Suspendida':'Suspender')+'</button></td></tr>';
+  });
+  $('#he-cuerpo').innerHTML = html + '</tbody></table></div>';
+  $('#he-ver').onchange = e => { const v = +e.target.value; if (Object.keys(H.dirty).length && !confirm('Tienes cambios sin guardar. ¿Cambiar de semana?')) { e.target.value = H.ver || d.semana.fila; return; } H.dirty = {}; H.ver = v === d.semana.fila ? null : v; heSem(); };
+  if (!actual) return;
+  $('#he-nueva').onclick = heNuevaSemana;
+  $('#he-cuerpo').querySelectorAll('tr[data-i]').forEach(tr => {
+    const f = sem.filas[+tr.dataset.i], g = tr.querySelector('[data-g]');
+    const leer = () => ({ L: tr.querySelector('[data-k=L]').value, M: tr.querySelector('[data-k=M]').value, O: tr.querySelector('[data-k=O]').value });
+    tr.querySelectorAll('input').forEach(inp => inp.oninput = () => {
+      const v = leer(); tr.querySelector('[data-n]').textContent = (Number(v.L)||0) + (Number(v.M)||0);
+      const sucio = v.L !== String(f.L) || v.M !== String(f.M) || v.O !== String(f.O);
+      g.hidden = !sucio; if (sucio) H.dirty[f.nombre] = 1; else delete H.dirty[f.nombre];
+    });
+    tr.querySelectorAll('input').forEach(inp => inp.onkeydown = e => { if (e.key === 'Enter' && !g.hidden) g.click(); });
+    g.onclick = () => { const v = leer(); heAccion('updateWeekly', [Object.assign({ nombre:f.nombre, titulo:sem.titulo, prev:{ L:f.L, M:f.M, O:f.O } }, v)], 'Guardado: '+f.nombre, g); };
+    tr.querySelector('[data-s]').onclick = () => heSuspender(f.nombre);
+  });
+}
+function heNuevaSemana(){
+  const d = heEstado().data;
+  const ini = d.semana.finIso && d.hoy <= d.semana.finIso ? addDias(d.semana.finIso, 1) : d.semanaHoy.ini;
+  const titulo = heTituloJS(ini);
+  const dup = d.semanas.some(s => heN(s.titulo) === heN(titulo));
+  const lejos = ini > addDias(d.semanaHoy.ini, 7);
+  modal('Crear nueva semana',
+    dup ? '<div class="err">Ya existe la «'+esc(titulo)+'».</div>' :
+    lejos ? '<div class="err">La semana siguiente ya está creada. La «'+esc(titulo)+'» se podrá crear cuando empiece la semana anterior a ella.</div>' :
+    '<p>Se creará <b>«'+esc(titulo)+'»</b> en K:O, 4 filas debajo de la semana actual, copiando sus grupos y personas con su formato. L, M y Observaciones quedan vacíos y N conserva la fórmula L+M.</p>',
+    '<button class="btn sec" onclick="cerrarModal()">Cancelar</button>'+(dup||lejos?'':'<button class="btn" id="he-ok">Crear semana</button>'), true);
+  if (!dup && !lejos) $('#he-ok').onclick = () => { heEstado().ver = null; heAccion('createWeek', [ini], null, $('#he-ok')); };
+}
+function heTituloJS(ini){
+  const M = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const a = new Date(ini+'T12:00'), b = new Date(addDias(ini,6)+'T12:00');
+  return 'Semana del '+a.getDate()+' de '+M[a.getMonth()]+' al '+b.getDate()+' de '+M[b.getMonth()];
+}
+function heSuspender(nombre){
+  modal('Suspender hora de estudio · '+nombre,
+    '<p class="sub" style="margin-top:0">Se escribe «SUSPENDIDA: …» en Observaciones de la semana actual y se registra en la hoja Suspensiones. Esta semana no tendrá sugerencia.</p>'+
+    '<div class="campo"><label>Justificación <span class="req">*</span></label><textarea id="he-j" placeholder="Ej. Vacaciones, permiso médico, capacitación externa"></textarea></div>',
+    '<button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" id="he-ok">Suspender</button>', true);
+  $('#he-ok').onclick = () => { const j = $('#he-j').value.trim(); if (!j) return errModal('La justificación es obligatoria.'); heAccion('suspend', [{ nombre, justificacion:j }], 'Hora de estudio suspendida', $('#he-ok')); };
+}
+
+/* ---------- Datos por CMC ---------- */
+function heCmc(nombre){
+  const d = heEstado().data, n = heN(nombre);
+  const pm = d.main.personas.find(p => heN(p.nombre) === n);
+  const aux = t => t.personas.find(p => heN(p.nombre) === n);
+  const cal = d.calendario.find(f => f.tipo === 'persona' && heN(f.nombre) === n);
+  const sem = d.semana.filas.find(f => f.tipo === 'persona' && heN(f.nombre) === n);
+  return { pm, ec: aux(d.ec), uni: aux(d.uni), rp: aux(d.rp), cal, sem };
+}
+function heValMain(pm, col){ const d = heEstado().data; const k = d.main.cols.findIndex(c => c.c === col.c); return pm ? (pm.vals[k] || '') : ''; }
+function heColsTipo(tipo){ return heEstado().data.main.cols.filter(c => c.tipo === tipo); }
+function heAvanceAux(t, p){
+  // devuelve [{curso, total, v, num, hecho, cursando}]
+  return t.cursos.map((cu,k) => {
+    const raw = String(p && p.vals[k] || '').trim(), x = heN(raw);
+    const hecho = x === 'x' || (cu.total > 0 && Number(raw) >= cu.total);
+    const num = x === 'x' ? (cu.total || 1) : (x === '1/2' ? 0 : (Number(raw) || 0));
+    const cursando = !hecho && (x === '1/2' || num > 0);
+    return { c: cu.c, curso: cu.nombre, total: cu.total, raw, num, hecho, cursando };
+  });
+}
+function heHorario(cal){ if (!cal) return ''; const i = cal.dias.findIndex(x => x); return i < 0 ? 'Sin horario' : cal.dias.map((x,j) => x ? HE_DIAS[j]+' '+x : '').filter(Boolean).join(' · '); }
+
+/* ---------- Registrar progreso ---------- */
+function heReg(){
+  const d = heEstado().data, R = heEstado().reg || (heEstado().reg = { cmc:'', tipo:'', curso:'' });
+  const optCmc = (() => { let g = '', h = ''; d.main.personas.forEach(p => { if (p.grupo !== g) { if (g) h += '</optgroup>'; g = p.grupo; h += '<optgroup label="'+esc(g === 'STAFF' ? 'Staff' : g)+'">'; } h += '<option'+(p.nombre===R.cmc?' selected':'')+'>'+esc(p.nombre)+'</option>'; }); return h + (g ? '</optgroup>' : ''); })();
+  $('#he-cuerpo').innerHTML =
+    '<div class="he-form"><div class="grid-form">'+
+      '<div class="campo"><label>CMC</label><select id="pr-c"><option value="">Elige…</option>'+optCmc+'</select></div>'+
+      '<div class="campo"><label>Tipo de curso</label><select id="pr-t"><option value="">Elige…</option>'+HE_TIPOS.map(t => '<option value="'+t[0]+'"'+(t[0]===R.tipo?' selected':'')+'>'+t[1]+'</option>').join('')+'</select></div>'+
+    '</div><div id="pr-det"></div></div>';
+  $('#pr-c').onchange = e => { R.cmc = e.target.value; heRegDet(); };
+  $('#pr-t').onchange = e => { R.tipo = e.target.value; R.curso = ''; heRegDet(); };
+  heRegDet();
+}
+function heRegDet(){
+  const H = heEstado(), d = H.data, R = H.reg, box = $('#pr-det');
+  if (!R.cmc || !R.tipo) { box.innerHTML = '<p class="sub">Elige el CMC y el tipo de curso.</p>'; return; }
+  const x = heCmc(R.cmc);
+  if (x.sem && heSusp(x.sem.O)) box.innerHTML = '<div class="rep-aviso">Esta semana está suspendida para '+esc(R.cmc)+': '+esc(x.sem.O)+'</div>'; else box.innerHTML = '';
+  let cursos = [], tabla = 'main';
+  if (R.tipo === 'OTRO') {
+    box.innerHTML += '<div class="grid-form">'+
+      '<div class="campo ancho"><label>Descripción <span class="req">*</span></label><input type="text" id="pr-desc" placeholder="Ej. Mastermind, MetabolismoTV, Hat de Quality Manager"></div>'+
+      '<div class="campo"><label>Pasos</label><input type="number" min="0" step="1" id="pr-pasos" value="1"></div>'+
+      '<div class="campo"><label>Sumar en</label><select id="pr-col"><option value="M">M · Pasos de entrenamiento</option><option value="L">L · Corrección / capacitación</option></select></div>'+
+    '</div><p class="sub">Se guarda en la hoja Progreso_Otro (no en R:AT) y se suma a la semana actual; N (Total) se calcula solo.</p>'+
+    '<div class="acciones"><button class="btn" id="pr-ok">Guardar</button></div>';
+    $('#pr-ok').onclick = () => {
+      const desc = $('#pr-desc').value.trim(); if (!desc) return toast('Escribe la descripción');
+      heAccion('saveOther', [{ nombre:R.cmc, descripcion:desc, pasos:$('#pr-pasos').value, columna:$('#pr-col').value }], 'Guardado', $('#pr-ok'));
+    };
+    return;
+  }
+  if (R.tipo === 'EC' || R.tipo === 'UNIMETAB' || R.tipo === 'RP') {
+    const t = R.tipo === 'EC' ? d.ec : R.tipo === 'UNIMETAB' ? d.uni : d.rp; tabla = R.tipo === 'EC' ? 'ec' : R.tipo === 'UNIMETAB' ? 'uni' : 'rp';
+    const p = R.tipo === 'EC' ? x.ec : R.tipo === 'UNIMETAB' ? x.uni : x.rp;
+    if (!p) { box.innerHTML += '<div class="err">'+esc(R.cmc)+' no aparece en esa tabla del Sheet.</div>'; return; }
+    cursos = heAvanceAux(t, p).map(a => ({ c:a.c, label:a.curso, actual:a.raw, a }));
+  } else {
+    cursos = heColsTipo(R.tipo).filter(c => !c.formula).map(c => ({ c:c.c, label:(R.tipo==='GRADUADOS'||R.tipo==='HUBBARD'?c.curso+' · ':'')+c.label, actual:heValMain(x.pm, c), col:c }));
+  }
+  if (!cursos.length) { box.innerHTML += '<p class="sub">No hay columnas editables para ese tipo.</p>'; return; }
+  if (!cursos.some(c => String(c.c) === String(R.curso))) R.curso = String((cursos.find(c => c.a && !c.a.hecho) || cursos[0]).c);
+  const cu = cursos.find(c => String(c.c) === String(R.curso));
+  let ctrl = '', ayuda = '';
+  if (tabla === 'ec') {
+    const a = cu.a;
+    ctrl = '<div class="campo"><label>Avance</label><select id="pr-modo"><option value="pasos">Pasos avanzados</option><option value="1/2">Cursando (1/2)</option><option value="x">Culminada (x)</option><option value="">Vaciar</option></select></div>'+
+           '<div class="campo" id="pr-pc"><label>Pasos'+(a.total?' (de '+a.total+')':'')+'</label><input type="number" min="0" step="1" id="pr-v" value="'+(a.hecho?(a.total||''):(a.num||''))+'"'+(a.total?' max="'+a.total+'"':'')+'></div>';
+    ayuda = 'Actual: '+(a.raw ? (a.hecho ? 'Culminada (x)' : heN(a.raw)==='1/2' ? 'Cursando (1/2)' : 'va '+a.num+(a.total?'/'+a.total:'')+' pasos') : 'pendiente')+'.'+(a.total?'':' Esta educación no tiene total de pasos en el Sheet.');
+  } else if (tabla === 'uni' || tabla === 'rp') {
+    const a = cu.a, u = tabla === 'uni' ? 'lecciones' : 'secciones';
+    ctrl = '<div class="campo"><label>'+(tabla==='uni'?'Lecciones':'Secciones')+' avanzadas'+(a.total?' (máx. '+a.total+')':'')+'</label><input type="number" min="0" step="1" id="pr-v" value="'+esc(a.raw)+'"'+(a.total?' max="'+a.total+'"':'')+'></div>';
+    ayuda = 'Actual: va '+a.num+(a.total?'/'+a.total:'')+' '+u+'.';
+  } else {
+    const c = cu.col;
+    ctrl = c.opciones.length
+      ? '<div class="campo"><label>'+esc(c.label)+'</label><select id="pr-v"><option value=""></option>'+c.opciones.map(o => '<option'+(heN(o)===heN(cu.actual)?' selected':'')+'>'+esc(o)+'</option>').join('')+'</select></div>'
+      : '<div class="campo"><label>'+esc(c.label)+'</label><input type="'+(c.numero?'number':'text')+'" id="pr-v" value="'+esc(cu.actual)+'"></div>';
+    ayuda = 'Actual: '+(cu.actual || 'vacío')+'.';
+  }
+  box.innerHTML += '<div class="grid-form">'+
+      '<div class="campo ancho"><label>Curso</label><select id="pr-cu">'+cursos.map(c => '<option value="'+c.c+'"'+(String(c.c)===String(R.curso)?' selected':'')+'>'+esc(c.label)+(c.a ? ' — '+(c.a.hecho?'✓ completo':c.a.cursando?'va '+c.a.num+(c.a.total?'/'+c.a.total:''):'pendiente') : (c.actual?' — '+c.actual:''))+'</option>').join('')+'</select></div>'+
+      ctrl+
+    '</div><p class="sub" id="pr-ayuda">'+esc(ayuda)+'</p>'+
+    '<div class="he-suma"><b>Sumar a la semana actual</b> <span class="sub">(N = L + M se calcula solo)</span><div class="grid-form">'+
+      '<div class="campo"><label>L · Corrección, completación o capacitación</label><input type="number" min="0" step="1" id="pr-l" value="0"></div>'+
+      '<div class="campo"><label>M · Pasos de entrenamiento</label><input type="number" min="0" step="1" id="pr-m" value="0"></div>'+
+    '</div></div>'+
+    '<div class="acciones"><button class="btn" id="pr-ok">Guardar avance</button></div>';
+  $('#pr-cu').onchange = e => { R.curso = e.target.value; heRegDet(); };
+  const modo = $('#pr-modo');
+  const valorNuevo = () => {
+    if (tabla === 'ec') { const m = modo.value; return m === 'pasos' ? $('#pr-v').value.trim() : m; }
+    return $('#pr-v').value.trim();
+  };
+  // Sugerencia de cuánto sumar: avance → M; culminar o corregir → 1 en L
+  const sugerir = () => {
+    let l = 0, m = 0;
+    const v = valorNuevo();
+    if (tabla === 'main') { if (/^(culminado|si)$/.test(heN(v)) && heN(v) !== heN(cu.actual)) l = 1; }
+    else {
+      const a = cu.a, prev = a.hecho ? (a.total || 0) : a.num;
+      let n = heN(v) === 'x' ? (a.total || prev) : heN(v) === '1/2' || v === '' ? prev : Number(v) || 0;
+      m = Math.max(0, n - prev);
+      const completa = heN(v) === 'x' || (a.total && Number(v) >= a.total);
+      if (completa && !a.hecho) l = 1;
+    }
+    $('#pr-l').value = l; $('#pr-m').value = m;
+  };
+  if (modo) {
+    const a = cu.a; modo.value = a.hecho ? 'x' : heN(a.raw) === '1/2' ? '1/2' : 'pasos';
+    const vis = () => { $('#pr-pc').style.display = modo.value === 'pasos' ? '' : 'none'; sugerir(); };
+    modo.onchange = vis; vis();
+  }
+  $('#pr-v') && ($('#pr-v').oninput = $('#pr-v').onchange = sugerir);
+  sugerir();
+  $('#pr-ok').onclick = () => {
+    const v = valorNuevo();
+    if (cu.a && cu.a.total && /^\d+$/.test(v) && Number(v) > cu.a.total) return toast('Máximo '+cu.a.total);
+    heAccion('saveProgress', [{ nombre:R.cmc, tabla, c:cu.c, valor:v, prev:cu.actual, sumaL:$('#pr-l').value, sumaM:$('#pr-m').value }], 'Avance guardado', $('#pr-ok'));
+  };
+}
+
+/* ---------- Progreso ---------- */
+function heNivel(pm){
+  const d = heEstado().data; let nivel = '';
+  for (const n of d.main.niveles) { if (heN(pm.vals[n.idx]) === 'aprobado') nivel = n.nombre; else break; }
+  return nivel || 'Sin nivel aprobado';
+}
+function heBarra(a, b, txt){ const p = b ? Math.min(100, Math.round(a/b*100)) : 0; return '<div class="he-barra"><i style="width:'+p+'%"></i></div><small>'+(txt || (a+'/'+b))+'</small>'; }
+function heResumenAux(t, p){ const av = heAvanceAux(t, p); return { hechos: av.filter(a => a.hecho).length, n: av.length, num: av.reduce((s,a) => s + (a.total ? Math.min(a.num, a.total) : 0), 0), tot: av.reduce((s,a) => s + a.total, 0) }; }
+function heProg(){
+  const H = heEstado(), d = H.data;
+  let html = '<div class="tabla-wrap" style="max-height:none"><table><thead><tr><th>Nombre</th><th>Nivel actual</th><th>Educaciones continuas</th><th>UNIMETAB (lecciones)</th><th>Role Plays (secciones)</th></tr></thead><tbody>';
+  let g = '';
+  d.main.personas.forEach(p => {
+    if (p.grupo !== g) { g = p.grupo; html += '<tr class="he-gr"><td colspan="5">'+esc(g === 'STAFF' ? 'Staff' : g)+'</td></tr>'; }
+    const x = heCmc(p.nombre), ec = x.ec ? heResumenAux(d.ec, x.ec) : null, un = x.uni ? heResumenAux(d.uni, x.uni) : null, rp = x.rp ? heResumenAux(d.rp, x.rp) : null;
+    html += '<tr class="clic" data-n="'+esc(p.nombre)+'"><td><b>'+esc(p.nombre)+'</b></td><td>'+esc(heNivel(p))+'</td>'+
+      '<td>'+(ec ? heBarra(ec.hechos, ec.n, ec.hechos+'/'+ec.n+' culminadas') : '—')+'</td>'+
+      '<td>'+(un ? heBarra(un.num, un.tot, un.num+'/'+un.tot) : '—')+'</td>'+
+      '<td>'+(rp ? heBarra(rp.num, rp.tot, rp.num+'/'+rp.tot) : '—')+'</td></tr>';
+  });
+  $('#he-cuerpo').innerHTML = html + '</tbody></table></div>';
+  $('#he-cuerpo').querySelectorAll('tr[data-n]').forEach(tr => tr.onclick = () => heDetalle(tr.dataset.n));
+}
+function heDetalle(nombre){
+  const d = heEstado().data, x = heCmc(nombre), pm = x.pm;
+  const est = v => { const n = heN(v); return '<span class="badge '+(n==='aprobado'||n==='culminado'||n==='si'?'b-ok':n==='reprobado'||n==='no'?'b-bad':n?'b-warn':'')+'">'+esc(v||'—')+'</span>'; };
+  let niv = '', ult = '';
+  d.main.cols.forEach((c,k) => {
+    if (c.nivel !== ult) { niv += (ult ? '</div>' : '') + '<div class="he-nivel"><h4>'+esc(c.nivel)+'</h4>'; ult = c.nivel; }
+    niv += '<div class="he-li"><span>'+esc(c.curso+' · '+c.label)+'</span>'+est(pm.vals[k])+'</div>';
+  });
+  niv += '</div>';
+  const lista = (t, p, u) => p ? heAvanceAux(t, p).map(a => '<div class="he-li"><span>'+esc(a.curso)+'</span><span>'+(a.hecho ? '<span class="badge b-ok">✓</span>' : a.cursando ? '<span class="badge b-warn">'+(heN(a.raw)==='1/2'?'Cursando':a.num+(a.total?'/'+a.total:''))+'</span>' : '<span class="sub">—</span>')+'</span></div>').join('') : '<p class="sub">No aparece en esta tabla.</p>';
+  modal(nombre + ' · ' + heNivel(pm),
+    '<p class="sub" style="margin-top:0">'+esc(heHorario(x.cal))+'</p>'+niv+
+    '<div class="he-nivel"><h4>Educaciones continuas</h4>'+lista(d.ec, x.ec)+'</div>'+
+    '<div class="he-nivel"><h4>UNIMETAB</h4>'+lista(d.uni, x.uni)+'</div>'+
+    '<div class="he-nivel"><h4>Role Plays</h4>'+lista(d.rp, x.rp)+'</div>',
+    '<button class="btn sec" onclick="cerrarModal()">Cerrar</button>');
+}
+
+/* ---------- Sugerencia semanal ---------- */
+function heSugerir(nombre){
+  const d = heEstado().data, x = heCmc(nombre), pm = x.pm, out = [];
+  if (!pm) return ['No aparece en la tabla de progreso.'];
+  const col = (tipo, rx, curso) => heColsTipo(tipo).find(c => rx.test(heN(c.label)) && (!curso || curso.test(heN(c.curso))));
+  const val = c => c ? heN(heValMain(pm, c)) : '';
+  const libro = (tipo, nom) => {
+    const e = col(tipo, /^estado/), ex = col(tipo, /^examen/), co = col(tipo, /^corregido/);
+    if (e && val(e) !== 'culminado') return nom + ': ' + (val(e) === 'cursando' ? 'continuar' : 'comenzar') + ' el estudio del libro.';
+    if (ex && val(ex) !== 'si') return nom + ': presentar el examen.';
+    if (co && val(co) !== 'si') return nom + ': corrección del examen.';
+    return null;
+  };
+  let s = libro('EPDM', 'EPDM'); if (s) return [s];
+  const gc = col('GUIA', /^comenzo/), gf = col('GUIA', /^culmino/);
+  if (gc && val(gc) !== 'si') return ['Guía de CMC: comenzar el estudio.'];
+  if (gf && val(gf) !== 'si') return ['Guía de CMC: culminar el estudio.'];
+  const sig = (t, p) => { if (!p) return null; const av = heAvanceAux(t, p); return av.find(a => a.cursando) || av.find(a => !a.hecho) || null; };
+  const ec = sig(d.ec, x.ec), un = sig(d.uni, x.uni), rp = sig(d.rp, x.rp);
+  const txt = (a, pref, u) => pref + ': ' + (a.cursando ? 'continuar' : 'comenzar') + ' «' + a.curso + '»' + (a.cursando && heN(a.raw) !== '1/2' ? ' (va ' + a.num + (a.total ? '/' + a.total : '') + (u ? ' ' + u : '') + ')' : (a.total && u ? ' (' + a.total + ' ' + u + ')' : '')) + '.';
+  if (ec || un) {
+    let elige;
+    if (ec && un) {
+      const ult = d.ultimo[heN(nombre)];
+      if (ult && ult.tipo === 'UNIMETAB') elige = 'EC';
+      else if (ult && ult.tipo === 'EC') elige = 'UNI';
+      else elige = ec.cursando || !un.cursando ? 'EC' : 'UNI';
+    } else elige = ec ? 'EC' : 'UNI';
+    out.push(elige === 'EC' ? txt(ec, 'Educación continua', 'pasos') : txt(un, 'UNIMETAB', 'lecciones'));
+    if (ec && un) out.push('Alterna con ' + (elige === 'EC' ? 'UNIMETAB «' + un.curso + '»' : 'la educación continua «' + ec.curso + '»') + ' en la siguiente sesión.');
+  }
+  if (rp) out.push(txt(rp, 'Role Play', 'secciones'));
+  if (out.length) return out;
+  s = libro('MUP', 'MUP'); if (s) return [s];
+  s = libro('DSP', 'DSP'); if (s) return [s];
+  const h1 = col('HUBBARD', /^estado/, /hubbard 1/), h2 = col('HUBBARD', /^estado/, /hubbard 2/);
+  if (h1 && val(h1) !== 'culminado') return ['Hubbard 1: ' + (val(h1) === 'cursando' ? 'continuar' : 'comenzar') + ' el curso.'];
+  if (h2 && val(h2) !== 'culminado') return ['Hubbard 2: ' + (val(h2) === 'cursando' ? 'continuar' : 'comenzar') + ' el curso.'];
+  return ['Completó el plan de estudio.'];
+}
+function heSug(){
+  const d = heEstado().data;
+  let html = '<p class="sub" style="margin-top:0">Orden: EPDM → Guía CMC → Educaciones continuas y UNIMETAB (alternando) + Role Plays → MUP → DSP → Hubbard 1 → Hubbard 2.</p>'+
+    '<div class="tabla-wrap" style="max-height:none"><table><thead><tr><th>Nombre</th><th>Día y hora</th><th>Le toca esta semana</th><th></th></tr></thead><tbody>';
+  let g = '';
+  d.main.personas.forEach(p => {
+    if (p.grupo !== g) { g = p.grupo; html += '<tr class="he-gr"><td colspan="4">'+esc(g === 'STAFF' ? 'Staff' : g)+'</td></tr>'; }
+    const x = heCmc(p.nombre), susp = x.sem && heSusp(x.sem.O);
+    html += '<tr class="'+(susp?'he-susp':'')+'"><td><b>'+esc(p.nombre)+'</b></td><td class="sub">'+esc(heHorario(x.cal))+'</td>'+
+      '<td>'+(susp ? '<span class="badge b-bad">Suspendida</span> '+esc(String(x.sem.O).replace(/^\s*suspendida:\s*/i,'')) : '<ul class="he-ul">'+heSugerir(p.nombre).map(s => '<li>'+esc(s)+'</li>').join('')+'</ul>')+'</td>'+
+      '<td class="he-acc">'+(!susp && S.user.rol === 'admin' && x.cal ? '<button class="btn sec sm" data-m="'+esc(p.nombre)+'" title="Enviar recordatorio por correo">✉ Correo</button> ' : '')+(x.sem && !susp ? '<button class="btn sec sm" data-s="'+esc(p.nombre)+'">Suspender</button>' : '')+'</td></tr>';
+  });
+  $('#he-cuerpo').innerHTML = html + '</tbody></table></div>';
+  $('#he-cuerpo').querySelectorAll('[data-s]').forEach(b => b.onclick = () => heSuspender(b.dataset.s));
+  $('#he-cuerpo').querySelectorAll('[data-m]').forEach(b => b.onclick = () => heCorreo(b.dataset.m));
+}
+
+/* ---------- Correo de recordatorio (prueba manual por consultor) ---------- */
+async function heCorreo(nombre){
+  const sugerencias = heSugerir(nombre);
+  modal('Correo de hora de estudio · '+nombre, '<div class="cargando" style="padding:30px 0">Preparando vista previa…</div>', '', false);
+  let pv;
+  try { pv = await api('emailPreview', { nombre, sugerencias }); } catch(e){ errModal(e.message); return; }
+  $('#modal-b').innerHTML =
+    '<div class="grid-form">'+
+      '<div class="campo"><label>Para (consultor)</label><input type="email" id="ml-para" value="'+esc(pv.para)+'" placeholder="correo@naturalslim.com"></div>'+
+      '<div class="campo"><label>CC (supervisor'+(pv.supervisor ? ': '+esc(pv.supervisor) : '')+')</label><input type="email" id="ml-cc" value="'+esc(pv.cc)+'" placeholder="'+(pv.supervisor ? 'correo del supervisor' : 'Sin supervisor en el calendario')+'"'+(pv.supervisor?'':' disabled')+'></div>'+
+    '</div>'+
+    '<p class="sub" style="margin:0 0 10px">Asunto: <b>'+esc(pv.asunto)+'</b><br>Se envía desde <b>'+esc(pv.remitente)+'</b> · quedan '+pv.cuota+' correos hoy. Los correos que escribas aquí se guardan en la hoja «Correos Hora de Estudio».</p>'+
+    '<div class="ml-prev">'+pv.html+'</div>';
+  $('#modal-f').innerHTML = '<button class="btn sec" onclick="cerrarModal()">Cancelar</button>'+
+    '<button class="btn sec" id="ml-prueba">Enviar prueba solo a mí</button>'+
+    '<button class="btn" id="ml-real">Enviar al consultor</button>';
+  const enviar = async (prueba, b) => {
+    const para = $('#ml-para').value.trim(), cc = $('#ml-cc').value.trim();
+    const ok = s => /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(s);
+    if (!prueba && !ok(para)) return errModal('Escribe un correo válido para el consultor.');
+    if (cc && !ok(cc)) return errModal('El correo del supervisor no es válido.');
+    if (!prueba && !confirm('¿Enviar el correo a '+para+(cc?' con copia a '+cc:'')+'?')) return;
+    b.disabled = true; const t = b.textContent; b.textContent = 'Enviando…';
+    try {
+      const r = await api('sendEmail', { nombre, para, cc, sugerencias, prueba });
+      cerrarModal(); toast((prueba ? 'Prueba enviada a ' : 'Correo enviado a ') + r.enviadoA + (r.cc ? ' (CC '+r.cc+')' : ''));
+    } catch(e){ errModal(e.message); b.disabled = false; b.textContent = t; }
+  };
+  $('#ml-prueba').onclick = () => enviar(true, $('#ml-prueba'));
+  $('#ml-real').onclick = () => enviar(false, $('#ml-real'));
 }
 
 /* ======================== Hojas de captura ======================== */
